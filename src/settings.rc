@@ -1,0 +1,254 @@
+#define IDOK                1
+#define IDCANCEL            2
+#define WS_CHILD            0x40000000
+#define WS_VISIBLE          0x10000000
+#define WS_TABSTOP          0x00010000
+#define WS_GROUP            0x00020000
+#define WS_BORDER           0x00800000
+#define WS_VSCROLL          0x00200000
+#define LBS_NOTIFY          0x0001
+#define CBS_DROPDOWNLIST    0x0003
+#define ES_NUMBER           0x2000
+#define ES_CENTER           0x0001
+#define RT_MANIFEST         24
+
+#include "resource.h"
+
+2 RT_MANIFEST "src\\FormatSQL.manifest"
+
+// ─── version info (required for the Notepad++ plugin list / update checks) ───
+
+1 VERSIONINFO
+FILEVERSION     1,0,0,0
+PRODUCTVERSION  1,0,0,0
+FILEFLAGSMASK   0x3fL
+FILEFLAGS       0x0L
+FILEOS          0x40004L
+FILETYPE        0x2L
+FILESUBTYPE     0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName",      "Datamodder"
+            VALUE "FileDescription",  "Datamodder SQL Formatter for Notepad++"
+            VALUE "FileVersion",      "1.0.0.0"
+            VALUE "InternalName",     "FormatSQL"
+            VALUE "LegalCopyright",   "Copyright (c) 2026 Datamodder"
+            VALUE "OriginalFilename", "FormatSQL.dll"
+            VALUE "ProductName",      "Datamodder SQL Formatter"
+            VALUE "ProductVersion",   "1.0.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
+
+// Style values:
+//   modal popup : WS_POPUP|WS_CAPTION|WS_SYSMENU|DS_SETFONT = 0x80C80040
+//   child panel : WS_CHILD|WS_CLIPSIBLINGS|DS_SETFONT        = 0x44000040
+
+// ─── main settings dialog ─────────────────────────────────────────────────────
+
+IDD_SETTINGS DIALOG 0, 0, 420, 305
+STYLE 0x80C80040
+CAPTION "FormatSQL - Settings"
+FONT 8, "MS Shell Dlg"
+BEGIN
+    LISTBOX IDC_NAV, 7, 7, 80, 265, LBS_NOTIFY | WS_VSCROLL | WS_BORDER | WS_TABSTOP
+    DEFPUSHBUTTON "Save",   IDOK,      303, 281, 50, 14
+    PUSHBUTTON    "Cancel", IDCANCEL,  360, 281, 50, 14
+END
+
+// ─── tab: structure (shown first) ─────────────────────────────────────────────
+
+IDD_TAB_STRUCTURE DIALOG 0, 0, 322, 265
+STYLE 0x44000040
+FONT 8, "MS Shell Dlg"
+BEGIN
+    GROUPBOX     "CASE statements", -1, 5, 5, 308, 86
+    AUTORADIOBUTTON "Preserve",                                    IDC_CASE_LEAVE,      13, 18,  80, 10, WS_GROUP | WS_TABSTOP
+    AUTORADIOBUTTON "Expand  (each keyword on own line)",          IDC_CASE_EXPAND,     13, 31, 270, 10
+    AUTORADIOBUTTON "Expand joined  (WHEN ... THEN on one line)",  IDC_CASE_JOINED,     13, 44, 270, 10
+    AUTORADIOBUTTON "Inline  (all on one line)",                   IDC_CASE_INLINE,     13, 57, 150, 10
+    AUTOCHECKBOX    "Align THEN columns  (Expand joined only)",    IDC_ALIGN_CASE_WHEN, 23, 70, 220, 10
+
+    GROUPBOX     "CTEs  (WITH clauses)", -1, 5, 96, 308, 46
+    AUTOCHECKBOX "Each CTE on a new line", IDC_CTE_NL,     13, 109, 200, 10
+    AUTOCHECKBOX "Indent CTE body",        IDC_CTE_INDENT, 13, 122, 200, 10
+
+    GROUPBOX     "Subqueries", -1, 5, 147, 308, 33
+    AUTOCHECKBOX "Indent subqueries relative to parent", IDC_SUB_INDENT, 13, 160, 240, 10
+
+    GROUPBOX        "Semicolons  (for execution)", -1, 5, 185, 308, 80
+    AUTOCHECKBOX    "Add if missing",             IDC_SEMI_ADD,      13, 198, 140, 10
+    AUTORADIOBUTTON "Preserve",                   IDC_SEMI_PRESERVE, 13, 212,  80, 10, WS_GROUP | WS_TABSTOP
+    AUTORADIOBUTTON "Same line as last clause",   IDC_SEMI_SAME,     13, 225, 150, 10
+    AUTORADIOBUTTON "Own line",                   IDC_SEMI_OWN,      13, 238,  80, 10
+    AUTORADIOBUTTON "Remove semicolons",          IDC_SEMI_REMOVE,   13, 251, 120, 10
+END
+
+// ─── tab: casing ──────────────────────────────────────────────────────────────
+
+IDD_TAB_CASING DIALOG 0, 0, 322, 252
+STYLE 0x44000040
+FONT 8, "MS Shell Dlg"
+BEGIN
+    GROUPBOX        "Keywords", -1, 5, 5, 308, 33
+    AUTORADIOBUTTON "Preserve",  IDC_KW_PRESERVE, 13, 18,  60, 10, WS_GROUP | WS_TABSTOP
+    AUTORADIOBUTTON "Lowercase", IDC_KW_LOWER,    83, 18,  65, 10
+    AUTORADIOBUTTON "Uppercase", IDC_KW_UPPER,   158, 18,  65, 10
+
+    GROUPBOX        "Functions", -1, 5, 46, 308, 33
+    AUTORADIOBUTTON "Preserve",  IDC_FN_PRESERVE, 13, 59,  60, 10, WS_GROUP | WS_TABSTOP
+    AUTORADIOBUTTON "Lowercase", IDC_FN_LOWER,    83, 59,  65, 10
+    AUTORADIOBUTTON "Uppercase", IDC_FN_UPPER,   158, 59,  65, 10
+
+    GROUPBOX        "Identifiers  (table and column names)", -1, 5, 87, 308, 33
+    AUTORADIOBUTTON "Preserve",  IDC_ID_PRESERVE, 13, 100, 62, 10, WS_GROUP | WS_TABSTOP
+    AUTORADIOBUTTON "Lowercase", IDC_ID_LOWER,    87, 100, 65, 10
+    AUTORADIOBUTTON "Uppercase", IDC_ID_UPPER,   164, 100, 65, 10
+END
+
+// ─── tab: columns & aliases ───────────────────────────────────────────────────
+
+IDD_TAB_COLUMNS DIALOG 0, 0, 322, 252
+STYLE 0x44000040
+FONT 8, "MS Shell Dlg"
+BEGIN
+    GROUPBOX     "Columns", -1, 5, 5, 308, 73
+    AUTOCHECKBOX "Split columns onto separate lines",         IDC_SPLIT_COLS,    13, 18, 220, 10
+    LTEXT        "Comma position:", -1,                                          13, 34,  68, 10
+    AUTORADIOBUTTON "Before column  (, col)", IDC_COMMA_BEFORE, 86, 33, 115, 10, WS_GROUP | WS_TABSTOP
+    AUTORADIOBUTTON "After column  (col ,)",  IDC_COMMA_AFTER,  86, 46, 115, 10
+    AUTOCHECKBOX "Align AS keywords in SELECT lists (comma-before only)", IDC_ALIGN_ALIASES, 13, 57, 260, 10
+
+    GROUPBOX     "Column aliases", -1, 5, 82, 308, 75
+    AUTORADIOBUTTON "Preserve",           IDC_ALIAS_PRESERVE,   13,  95,  75, 10, WS_GROUP | WS_TABSTOP
+    AUTORADIOBUTTON "Add AS keyword",     IDC_ALIAS_ADD,         13, 108,  90, 10
+    AUTORADIOBUTTON "Remove AS keyword",  IDC_ALIAS_REMOVE_AS,   13, 121, 115, 10
+    AUTORADIOBUTTON "lowercase",          IDC_ALIAS_KW_LOWER,   115, 108,  65, 10, WS_GROUP | WS_TABSTOP
+    AUTORADIOBUTTON "UPPERCASE",          IDC_ALIAS_KW_UPPER,   185, 108,  65, 10
+END
+
+// ─── tab: alignment ───────────────────────────────────────────────────────────
+
+IDD_TAB_ALIGNMENT DIALOG 0, 0, 322, 252
+STYLE 0x44000040
+FONT 8, "MS Shell Dlg"
+BEGIN
+    AUTOCHECKBOX "Right-align keywords to SELECT width", IDC_ALIGN_KEYWORDS, 13, 15, 250, 10
+    AUTOCHECKBOX "Align ON / AND / OR to end of JOIN",  IDC_ALIGN_JOIN_ON,   13, 30, 250, 10
+END
+
+// ─── tab: spacing ─────────────────────────────────────────────────────────────
+
+IDD_TAB_SPACING DIALOG 0, 0, 322, 252
+STYLE 0x44000040
+FONT 8, "MS Shell Dlg"
+BEGIN
+    GROUPBOX     "Spaces around operators  (a = b)", -1, 5, 5, 308, 33
+    AUTORADIOBUTTON "Preserve", IDC_SPC_OPS_LEAVE,  13, 18,  60, 10, WS_GROUP | WS_TABSTOP
+    AUTORADIOBUTTON "Add",      IDC_SPC_OPS_ADD,    81, 18,  40, 10
+    AUTORADIOBUTTON "Remove",   IDC_SPC_OPS_REMOVE, 129, 18, 55, 10
+
+    GROUPBOX     "Spaces inside function calls  (count( * ))", -1, 5, 46, 308, 33
+    AUTORADIOBUTTON "Preserve", IDC_SPC_FN_LEAVE,   13, 59,  60, 10, WS_GROUP | WS_TABSTOP
+    AUTORADIOBUTTON "Add",      IDC_SPC_FN_ADD,     81, 59,  40, 10
+    AUTORADIOBUTTON "Remove",   IDC_SPC_FN_REMOVE, 129, 59,  55, 10
+
+    AUTOCHECKBOX "Blank line between clauses", IDC_BLANK_BETWEEN, 13, 92, 200, 10
+
+    GROUPBOX     "Blank lines between statements", -1, 5, 105, 308, 33
+    AUTORADIOBUTTON "Preserve",   IDC_BLANK_PRESERVE, 13, 118, 65, 10, WS_GROUP | WS_TABSTOP
+    AUTORADIOBUTTON "Merge to 1", IDC_BLANK_MERGE,    90, 118, 65, 10
+    AUTORADIOBUTTON "Remove all", IDC_BLANK_REMOVE,  170, 118, 65, 10
+
+    LTEXT    "Max line length  (0 = no limit):",           -1,             13, 148, 165, 10
+    EDITTEXT IDC_MAX_LENGTH,                                               185, 146,  35, 12, ES_NUMBER | ES_CENTER | WS_BORDER
+
+    LTEXT    "Wrap IN (...) lists when line > N chars  (0 = off):", -1,   13, 163, 200, 10
+    EDITTEXT IDC_IN_LIST_WRAP,                                             185, 161,  35, 12, ES_NUMBER | ES_CENTER | WS_BORDER
+END
+
+// ─── tab: joins ───────────────────────────────────────────────────────────────
+
+IDD_TAB_JOINS DIALOG 0, 0, 322, 252
+STYLE 0x44000040
+FONT 8, "MS Shell Dlg"
+BEGIN
+    GROUPBOX     "JOINs", -1, 5, 5, 308, 33
+    AUTOCHECKBOX "Remove INNER / OUTER  (LEFT OUTER JOIN -> LEFT JOIN)", IDC_STRIP_IO, 13, 18, 290, 10
+END
+
+// ─── tab: dialect ─────────────────────────────────────────────────────────────
+
+IDD_TAB_DIALECT DIALOG 0, 0, 322, 252
+STYLE 0x44000040
+FONT 8, "MS Shell Dlg"
+BEGIN
+    GROUPBOX "SQL Dialect", -1, 5, 5, 308, 188
+    AUTORADIOBUTTON "ANSI  (generic)",          IDC_DIALECT_ANSI,       13,  20, 200, 10, WS_GROUP | WS_TABSTOP
+    AUTORADIOBUTTON "Snowflake",                IDC_DIALECT_SNOWFLAKE,  13,  35, 140, 10
+    AUTORADIOBUTTON "PostgreSQL",               IDC_DIALECT_PG,         13,  50, 140, 10
+    AUTORADIOBUTTON "MS SQL  (T-SQL)",          IDC_DIALECT_MSSQL,      13,  65, 140, 10
+    AUTORADIOBUTTON "MySQL  /  MariaDB",        IDC_DIALECT_MYSQL,      13,  80, 140, 10
+    AUTORADIOBUTTON "SQLite",                   IDC_DIALECT_SQLITE,     13,  95, 140, 10
+    AUTORADIOBUTTON "Databricks  (Spark SQL)",  IDC_DIALECT_DATABRICKS, 13, 110, 180, 10
+    LTEXT "",                                   IDC_DIALECT_DESC,       13, 128, 290, 20
+    PUSHBUTTON "Apply dialect defaults",        IDC_DIALECT_APPLY,      13, 155, 150, 14, WS_TABSTOP
+    LTEXT "Adjusts keyword casing and other defaults for the selected dialect.",
+                                                -1,                     13, 174, 285, 10
+END
+
+// ─── tab: fqdn ────────────────────────────────────────────────────────────────
+
+IDD_TAB_FQDN DIALOG 0, 0, 322, 252
+STYLE 0x44000040
+FONT 8, "MS Shell Dlg"
+BEGIN
+    GROUPBOX "Fully Qualified Object Names", -1, 5, 5, 308, 75
+    LTEXT    "Database (optional):", -1,          13, 22, 80, 10
+    EDITTEXT IDC_FQDN_DB,                        98, 20, 110, 12, WS_BORDER | WS_TABSTOP
+    LTEXT    "Schema:",              -1,          13, 40, 80, 10
+    EDITTEXT IDC_FQDN_SCHEMA,                    98, 38, 110, 12, WS_BORDER | WS_TABSTOP
+    LTEXT "Vul minimaal een schema in. Onbekwalificeerde tabellen in FROM / JOIN worden automatisch voorzien van het prefix.", -1, 13, 57, 290, 16
+END
+
+// ─── tab: profiles ────────────────────────────────────────────────────────────
+
+IDD_TAB_PROFILES DIALOG 0, 0, 322, 252
+STYLE 0x44000040
+FONT 8, "MS Shell Dlg"
+BEGIN
+    GROUPBOX "Saved profiles", -1, 5, 5, 308, 155
+    LISTBOX IDC_PROFILE_LIST,                    13,  18, 195, 135, LBS_NOTIFY | WS_VSCROLL | WS_BORDER | WS_TABSTOP
+    PUSHBUTTON "Load",   IDC_PROFILE_LOAD,       213, 18,  92, 14
+    PUSHBUTTON "Delete", IDC_PROFILE_DELETE,     213, 36,  92, 14
+
+    GROUPBOX "Save current settings as profile", -1, 5, 163, 308, 35
+    LTEXT    "Name:", -1,                         13, 178,  30, 10
+    EDITTEXT IDC_PROFILE_NAME,                    45, 177, 160, 12, WS_BORDER | WS_TABSTOP
+    PUSHBUTTON "Save", IDC_PROFILE_SAVE,         210, 175,  95, 14
+
+    PUSHBUTTON "Export to JSON...",   IDC_PROFILE_EXPORT,   5, 205, 148, 14
+    PUSHBUTTON "Import from JSON...", IDC_PROFILE_IMPORT,  158, 205, 148, 14
+END
+
+// ─── convert quotes dialog ───────────────────────────────────────────────────
+
+IDD_CONVERT_QUOTES DIALOG 0, 0, 200, 90
+STYLE 0x80C80040
+CAPTION "Convert Quotes"
+FONT 8, "MS Shell Dlg"
+BEGIN
+    LTEXT         "From:", -1,             10, 14, 30, 10
+    COMBOBOX      IDC_QUOTE_FROM,          45, 12, 65, 50, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT         "To:",   -1,             10, 34, 30, 10
+    COMBOBOX      IDC_QUOTE_TO,            45, 32, 65, 50, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    DEFPUSHBUTTON "OK",     IDOK,          95, 68, 45, 14
+    PUSHBUTTON    "Cancel", IDCANCEL,     145, 68, 45, 14
+END

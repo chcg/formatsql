@@ -1,0 +1,52 @@
+FormatSQL Plugin Help
+======================
+
+Quick Start
+-----------
+1. Select SQL text, or leave nothing selected to use the entire document.
+2. Choose a formatting option from the FormatSQL menu.
+
+Main Features
+-------------
+Format SQL (Ctrl+Alt+Shift+F)  - Auto-format with proper spacing and layout
+Minify SQL                     - Remove all unnecessary whitespace
+Format and Copy                - Format and copy the result to the clipboard
+Format on Save                 - On/Off - auto-format the document on every save
+
+Paste List
+----------
+Paste clipboard content (Excel columns or rows) as a quoted, comma-separated
+SQL list, in one of a few separator styles.
+
+Number Format
+-------------
+Convert numbers between EN, NL and FR/BE decimal and thousands-separator
+conventions, or strip thousands separators entirely.
+
+Quotes
+------
+Convert between single quotes, double quotes and backticks.
+
+Boolean
+-------
+Convert between TRUE/FALSE and 1/0.
+
+Change Casing (excl. string literals)
+--------------------------------------
+Lowercase or uppercase the whole document without touching string literals.
+
+Comment Style
+-------------
+Convert between --, /* */ and # comment styles, or strip comments entirely.
+
+Dialects
+--------
+Convert SQL function/keyword usage between ANSI, Snowflake, MS SQL,
+PostgreSQL, MySQL and Databricks.
+
+Settings
+--------
+Configure formatting rules (casing, alignment, structure, spacing, joins,
+dialect, FQDN qualification) and manage profiles.
+
+More info: see the project repository.
