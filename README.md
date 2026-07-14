@@ -2,6 +2,8 @@
 
 A Notepad++ plugin for formatting, minifying and converting SQL.
 
+**64-bit Notepad++ only.** 32-bit is not supported.
+
 ## Features
 
 - **Format SQL** (`Ctrl+Alt+Shift+F`) — auto-format with proper spacing and layout

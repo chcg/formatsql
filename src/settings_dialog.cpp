@@ -540,8 +540,8 @@ static INT_PTR CALLBACK profiles_page_proc(HWND hPage, UINT msg, WPARAM wParam, 
             if (!json.empty()) {
                 g_settings = settings_from_json(json);
                 settings_to_ui();
-                std::wstring msg = std::wstring(L"Profiel '") + name + L"' geladen.";
-                MessageBoxW(hPage, msg.c_str(), L"FormatSQL", MB_OK | MB_ICONINFORMATION);
+                std::wstring msg = std::wstring(L"Profile '") + name + L"' loaded.";
+                MessageBoxW(hPage, msg.c_str(), L"Datamodder SQL Formatter", MB_OK | MB_ICONINFORMATION);
             }
             break;
         }
@@ -561,7 +561,7 @@ static INT_PTR CALLBACK profiles_page_proc(HWND hPage, UINT msg, WPARAM wParam, 
             wchar_t name[512] = {};
             SendMessageW(hList, LB_GETTEXT, sel, reinterpret_cast<LPARAM>(name));
             std::wstring msg2 = std::wstring(L"Delete profile \"") + name + L"\"?";
-            if (MessageBoxW(GetParent(hPage), msg2.c_str(), L"FormatSQL",
+            if (MessageBoxW(GetParent(hPage), msg2.c_str(), L"Datamodder SQL Formatter",
                             MB_YESNO | MB_ICONQUESTION) == IDYES) {
                 DeleteFileW((get_profiles_dir() + L"\\" + name + L".json").c_str());
                 refresh_profile_list(hPage);
@@ -885,9 +885,9 @@ static INT_PTR CALLBACK settings_proc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM
             // Validate FQDN: database without schema is unusual and probably a mistake.
             if (!g_settings.fqdn_db.empty() && g_settings.fqdn_schema.empty()) {
                 MessageBoxW(hDlg,
-                    L"Als een database-naam is ingevuld, dient ook een schema-naam opgegeven te worden.\n\n"
-                    L"Gebruik alleen het Schema-veld als je wilt prefixen zonder database-naam.",
-                    L"FormatSQL – Ongeldige instelling", MB_OK | MB_ICONWARNING);
+                    L"If a database name is filled in, a schema name must also be provided.\n\n"
+                    L"Use only the Schema field if you want to prefix without a database name.",
+                    L"Datamodder SQL Formatter – Invalid setting", MB_OK | MB_ICONWARNING);
                 HWND hNav = GetDlgItem(hDlg, IDC_NAV);
                 SendMessageW(hNav, LB_SETCURSEL, 7, 0);
                 show_page(7);

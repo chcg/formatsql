@@ -1,10 +1,10 @@
-FormatSQL Plugin Help
-======================
+Datamodder SQL Formatter — Help
+================================
 
 Quick Start
 -----------
 1. Select SQL text, or leave nothing selected to use the entire document.
-2. Choose a formatting option from the FormatSQL menu.
+2. Choose a formatting option from the Datamodder SQL Formatter menu.
 
 Main Features
 -------------
@@ -48,5 +48,9 @@ Settings
 --------
 Configure formatting rules (casing, alignment, structure, spacing, joins,
 dialect, FQDN qualification) and manage profiles.
+
+Requirements
+------------
+64-bit Notepad++ only. 32-bit is not supported.
 
 More info: see the project repository.

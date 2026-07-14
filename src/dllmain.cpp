@@ -752,7 +752,7 @@ static void cmd_settings() { show_settings_dialog(g_npp._nppHandle); }
 
 static void cmd_about() {
     MessageBoxW(g_npp._nppHandle,
-        L"FormatSQL Notepad++ Plugin\n\n"
+        L"Datamodder SQL Formatter\n\n"
         L"A powerful SQL formatter and converter for Notepad++\n\n"
         L"Features:\n"
         L"• Format and minify SQL\n"
@@ -760,7 +760,7 @@ static void cmd_about() {
         L"• Quote and comment style conversion\n"
         L"• Number format conversion\n\n"
         L"For more information and updates, see the project repository.",
-        L"About FormatSQL", MB_OK | MB_ICONINFORMATION);
+        L"About Datamodder SQL Formatter", MB_OK | MB_ICONINFORMATION);
 }
 
 // ─── Help ─────────────────────────────────────────────────────────────────────
@@ -787,7 +787,7 @@ static HMENU find_my_menu() {
         for (int j = 0; j < GetMenuItemCount(top); ++j) {
             wchar_t buf[128] = {};
             GetMenuStringW(top, j, buf, 128, MF_BYPOSITION);
-            if (_wcsicmp(buf, L"FormatSQL") == 0) return GetSubMenu(top, j);
+            if (_wcsicmp(buf, L"Datamodder SQL Formatter") == 0) return GetSubMenu(top, j);
         }
     }
     return nullptr;
@@ -912,7 +912,7 @@ static void build_all_submenus(HMENU hMine) {
 
 extern "C" {
 
-__declspec(dllexport) const wchar_t* getName() { return L"FormatSQL"; }
+__declspec(dllexport) const wchar_t* getName() { return L"Datamodder SQL Formatter"; }
 
 __declspec(dllexport) void setInfo(NppData d) { g_npp = d; load_settings(); }
 

@@ -1,2 +1,4 @@
 build/
 build_log*.txt
+release_staging/
+FormatSQL.zip
