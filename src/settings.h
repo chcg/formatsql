@@ -61,3 +61,4 @@ void load_settings();
 void save_settings();
 void show_settings_dialog(HWND parent);
 void show_convert_quotes_dialog(HWND parent);
+void show_about_dialog(HWND parent);

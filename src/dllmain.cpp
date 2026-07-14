@@ -84,8 +84,8 @@ static ShortcutKey g_shortcut_format = { true, true, true, 'F' }; // Ctrl+Alt+Sh
 //  31-46  Dialects
 //  47  --- separator
 //  48  Settings...
-//  49  About  (MessageBoxW)
-//  50  Help   (opens FormatSQL_Help.txt via NPPM_DOOPEN)
+//  49  About  (dialog with clickable repo link)
+//  50  Help   (opens help.txt via NPPM_DOOPEN)
 
 static FuncItem g_funcs[51] = {};
 
@@ -750,29 +750,18 @@ static void cmd_settings() { show_settings_dialog(g_npp._nppHandle); }
 
 // ─── About dialog ─────────────────────────────────────────────────────────────
 
-static void cmd_about() {
-    MessageBoxW(g_npp._nppHandle,
-        L"Datamodder SQL Formatter\n\n"
-        L"A powerful SQL formatter and converter for Notepad++\n\n"
-        L"Features:\n"
-        L"• Format and minify SQL\n"
-        L"• Multi-dialect support (Snowflake, MSSQL, PostgreSQL, MySQL, Databricks)\n"
-        L"• Quote and comment style conversion\n"
-        L"• Number format conversion\n\n"
-        L"For more information and updates, see the project repository.",
-        L"About Datamodder SQL Formatter", MB_OK | MB_ICONINFORMATION);
-}
+static void cmd_about() { show_about_dialog(g_npp._nppHandle); }
 
 // ─── Help ─────────────────────────────────────────────────────────────────────
 
-// Opens FormatSQL_Help.txt, which build.cmd deploys next to the DLL, as a
+// Opens help.txt, which build.cmd deploys next to the DLL, as a
 // regular Notepad++ document instead of a MessageBox (readable/searchable/scrollable).
 static void cmd_help() {
     wchar_t path[MAX_PATH] = {};
     GetModuleFileNameW(g_module, path, MAX_PATH);
     wchar_t* slash = wcsrchr(path, L'\\');
     if (!slash) return;
-    wcscpy_s(slash + 1, MAX_PATH - (slash + 1 - path), L"FormatSQL_Help.txt");
+    wcscpy_s(slash + 1, MAX_PATH - (slash + 1 - path), L"help.txt");
     SendMessage(g_npp._nppHandle, NPPM_DOOPEN, 0, (LPARAM)path);
 }
 

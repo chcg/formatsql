@@ -25,7 +25,7 @@ cl /LD /O2 /EHsc /std:c++17 /MT /utf-8 ^
    build\settings.res ^
    /Fe:build\FormatSQL.dll ^
    /Fo:build\ ^
-   /link user32.lib comctl32.lib comdlg32.lib
+   /link user32.lib comctl32.lib comdlg32.lib shell32.lib
 if errorlevel 1 ( echo Build failed & exit /b 1 )
 
 :: ── Close Notepad++ ──────────────────────────────────────────────────────────
@@ -37,7 +37,7 @@ set DST=C:\Program Files\Notepad++\plugins\FormatSQL
 if not exist "%DST%" mkdir "%DST%"
 copy /y "build\FormatSQL.dll" "%DST%\FormatSQL.dll"
 if errorlevel 1 ( echo Copy failed & exit /b 1 )
-copy /y "src\FormatSQL_Help.txt" "%DST%\FormatSQL_Help.txt"
+copy /y "src\help.txt" "%DST%\help.txt"
 if errorlevel 1 ( echo Help file copy failed & exit /b 1 )
 
 :: ── Restart Notepad++ ────────────────────────────────────────────────────────

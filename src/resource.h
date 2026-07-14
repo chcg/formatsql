@@ -12,6 +12,7 @@
 #define IDD_TAB_DIALECT     109
 #define IDD_TAB_FQDN        110
 #define IDD_TAB_PROFILES    111
+#define IDD_ABOUT           112
 
 // ─── main dialog ──────────────────────────────────────────────────────────────
 #define IDC_NAV             201
@@ -102,3 +103,7 @@
 // ─── convert quotes dialog ───────────────────────────────────────────────────
 #define IDC_QUOTE_FROM      901
 #define IDC_QUOTE_TO        902
+
+// ─── about dialog ─────────────────────────────────────────────────────────────
+#define IDC_ABOUT_LINK      1301
+#define IDC_ABOUT_BODY      1302

@@ -1,0 +1,231 @@
+Datamodder SQL Formatter — Help
+================================
+
+Quick Start
+-----------
+1. Select SQL text, or leave nothing selected to use the entire document.
+2. Choose a formatting option from the Datamodder SQL Formatter menu.
+3. Open Settings to fine-tune casing, alignment, structure and spacing rules
+   before formatting — most transforms below follow these settings.
+
+
+FORMAT SQL
+==========
+
+Format SQL (Ctrl+Alt+Shift+F)
+-----------------------------
+Auto-formats SQL with proper spacing, casing and layout, according to your
+Settings.
+
+  Before:
+    SELECT COUNT(order_id), SUM(amount), customer_name, order_date
+    FROM orders WHERE status = 'active' AND amount > 100
+
+  After (default settings):
+    select count(order_id)
+         , sum(amount)
+         , customer_name
+         , order_date
+      from orders
+     where status = 'active'
+       and amount > 100
+
+  Another example (UPDATE):
+
+  Before:
+    UPDATE orders SET status = 'shipped', shipped_date = '2024-01-15',
+    tracking_number = 'TRACK123' WHERE order_id = 42 AND customer_id = 1
+
+  After:
+    update orders
+       set status = 'shipped'
+         , shipped_date = '2024-01-15'
+         , tracking_number = 'TRACK123'
+     where order_id = 42
+       and customer_id = 1
+
+  Advanced: with Settings > Structure > CASE = Expand and "Align THEN
+  columns" turned on, CASE expressions align like this:
+
+    case
+        when status = 'active'  then 'Active'
+        when status = 'pending' then 'Processing'
+        else                         'Unknown'
+    end as label
+
+Minify SQL
+----------
+Removes all unnecessary whitespace, collapsing everything onto as few lines
+as possible.
+
+  Before:
+    select order_id
+         , customer_id
+      from orders
+     where status = 'active'
+
+  After:
+    select order_id, customer_id from orders where status = 'active'
+
+Format and Copy
+----------------
+Formats the selection (or whole document) and copies the result to the
+clipboard, leaving the document itself untouched.
+
+Format on Save (On / Off)
+--------------------------
+When on, automatically runs Format SQL every time you save the document.
+
+
+PASTE LIST
+==========
+Paste clipboard content (an Excel column, or a row of tab-separated values)
+as a quoted, comma-separated SQL list — handy for building IN (...) lists.
+Values that look numeric are pasted unquoted; everything else is quoted,
+with embedded quotes doubled automatically.
+
+  Clipboard (an Excel column, one value per row):
+    1024
+    1025
+    1030
+
+  Paste List > Each value on its own line:
+    1024,
+    1025,
+    1030
+
+  Clipboard (an Excel row):
+    amsterdam    utrecht    rotterdam
+
+  Paste List > Comma + space:
+    'amsterdam', 'utrecht', 'rotterdam'
+
+
+NUMBER FORMAT
+=============
+Convert numbers between regional decimal / thousands-separator conventions.
+
+  NL -> EN            1.234,56   ->  1,234.56
+  EN -> NL             1,234.56  ->  1.234,56
+  FR/BE -> EN          1 234,56  ->  1,234.56
+  EN -> FR/BE          1,234.56  ->  1 234,56
+  Remove thousands     1,234 / 1.234  ->  1234
+
+
+QUOTES
+======
+Convert between single quotes, double quotes and backticks.
+
+  Double -> single       "active"   ->  'active'
+  Single -> backtick     'active'   ->  `active`
+
+
+BOOLEAN
+=======
+Convert between TRUE/FALSE and 1/0. Matches whole words only; string
+literals are left untouched.
+
+  TRUE/FALSE -> 1/0      where active = TRUE   ->  where active = 1
+  1/0 -> TRUE/FALSE      where active = 1      ->  where active = TRUE
+
+
+CHANGE CASING (excl. string literals)
+======================================
+Lowercase or uppercase the whole document without touching the contents of
+string literals.
+
+  Uppercase:
+    SELECT name FROM customers WHERE city = 'Amsterdam'
+  Lowercase:
+    select name from customers where city = 'Amsterdam'
+
+For per-category rules (only keywords, only functions, only identifiers),
+use Settings > Casing and run Format SQL instead of this blunt whole-
+document tool.
+
+
+COMMENT STYLE
+=============
+Convert between --, /* */ and # comment styles, or strip comments entirely.
+
+  --  ->  /* */          -- total per customer   ->  /* total per customer */
+  /* */  ->  --          /* total per customer */  ->  -- total per customer
+  #  ->  --  (MySQL -> standard), and back
+
+Strip comments removes all comments — including standalone comment lines —
+while leaving the SQL itself untouched.
+
+
+DIALECTS
+========
+Convert SQL function/keyword usage between ANSI, Snowflake, MS SQL,
+PostgreSQL, MySQL and Databricks. Only function/keyword names change;
+general formatting is untouched. Supported pairs (each also works in
+reverse):
+
+  ANSI <-> Snowflake
+    substring(name, 1, 3)         <->  substr(name, 1, 3)
+    character_length(name)       <->  length(name)
+
+  ANSI <-> MS SQL
+    character_length(name)       <->  len(name)
+
+  Snowflake <-> MS SQL
+    iff(active, 'yes', 'no')     <->  iif(active, 'yes', 'no')
+    nvl(phone, email)            <->  isnull(phone, email)
+    length(name)                 <->  len(name)
+
+  PostgreSQL <-> MS SQL
+    length(name)                 <->  len(name)
+    now()                        <->  getdate()
+
+  PostgreSQL <-> Snowflake
+    now()                        <->  current_timestamp
+
+  MySQL <-> MS SQL
+    if(active, 'yes', 'no')      <->  iif(active, 'yes', 'no')
+    ifnull(phone, email)         <->  isnull(phone, email)
+    now()                        <->  getdate()
+
+  MySQL <-> Snowflake
+    if(active, 'yes', 'no')      <->  iff(active, 'yes', 'no')
+    now()                        <->  current_timestamp
+
+  Databricks <-> Snowflake
+    collect_list(name)           <->  array_agg(name)
+    date_format(ts, fmt)         <->  to_char(ts, fmt)
+    from_unixtime(ts)            <->  to_timestamp(ts)
+
+
+SETTINGS
+========
+Configure formatting rules and manage profiles:
+
+  Casing        keyword / function / identifier casing (preserve, lower, upper)
+  Columns       split columns, comma position, alias handling and alignment
+  Alignment     align keywords to SELECT width, align ON/AND under JOIN
+  Structure     CASE expansion, CTE layout, subquery indent, semicolons
+  Spacing       spaces around operators/functions, blank lines, max line
+                length, IN (...) list wrapping
+  Joins         strip INNER/OUTER keywords
+  Dialect       pick a starting dialect to apply sensible defaults
+  FQDN          auto-prefix unqualified tables with database.schema
+  Profiles      save/load/export/import named settings profiles
+
+No-format pragma: wrap SQL you don't want touched in
+
+    -- @formatter:off
+    ...
+    -- @formatter:on
+
+dbt / Jinja support: {{ ref(...) }}, {{ var }} and {# comment #} are
+protected during formatting; {% ... %} lines are left unchanged.
+
+
+REQUIREMENTS
+============
+64-bit Notepad++ only. 32-bit is not supported.
+
+
+More information, updates, and bug reports: see the project repository at
+https://github.com/dm-utils/formatsql

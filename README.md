@@ -19,13 +19,13 @@ A Notepad++ plugin for formatting, minifying and converting SQL.
 - **Dialects** — convert SQL between ANSI, Snowflake, MS SQL, PostgreSQL, MySQL and Databricks
 - **Settings** — configure casing, alignment, structure, spacing, joins, dialect and FQDN qualification rules, with saved profiles
 
-See `src/FormatSQL_Help.txt` (also available from the plugin's Help menu item once installed) for the full manual.
+See `src/help.txt` (also available from the plugin's Help menu item once installed) for the full manual.
 
 ## Installation
 
 Once listed in Notepad++'s Plugin Admin: **Plugins → Plugins Admin... → Datamodder SQL Formatter → Install**.
 
-Manual install: copy the built `FormatSQL.dll` and `FormatSQL_Help.txt` into
+Manual install: copy the built `FormatSQL.dll` and `help.txt` into
 `<Notepad++ install dir>\plugins\FormatSQL\`.
 
 ## Building from source

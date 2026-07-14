@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <commdlg.h>
 #include <commctrl.h>
+#include <shellapi.h>
 #include <stdlib.h>
 #include <string>
 #include <vector>
@@ -952,4 +953,53 @@ static INT_PTR CALLBACK convert_quotes_proc(HWND hDlg, UINT msg, WPARAM wParam, 
 
 void show_convert_quotes_dialog(HWND parent) {
     DialogBox(g_module, MAKEINTRESOURCE(IDD_CONVERT_QUOTES), parent, convert_quotes_proc);
+}
+
+// ─── about dialog ─────────────────────────────────────────────────────────────
+
+static INT_PTR CALLBACK about_proc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM lParam) {
+    switch (msg) {
+    case WM_INITDIALOG:
+        SetDlgItemTextW(hDlg, IDC_ABOUT_BODY,
+            L"A powerful SQL formatter and converter for Notepad++.\n\n"
+            L"Features:\n"
+            L"- Format and minify SQL\n"
+            L"- Multi-dialect support:\n"
+            L"      - Snowflake\n"
+            L"      - MS SQL\n"
+            L"      - PostgreSQL\n"
+            L"      - MySQL\n"
+            L"      - Databricks\n"
+            L"- Convert Lists (paste clipboard content as a quoted SQL list)\n"
+            L"- Quote and comment style conversion\n"
+            L"- Number format conversion\n\n"
+            L"This plugin is distributed under the MIT license.\n\n"
+            L"For more information, updates, or to report a bug, visit the project repository:");
+        return TRUE;
+    case WM_NOTIFY: {
+        NMHDR* hdr = reinterpret_cast<NMHDR*>(lParam);
+        if (hdr->idFrom == IDC_ABOUT_LINK && (hdr->code == NM_CLICK || hdr->code == NM_RETURN)) {
+            NMLINK* link = reinterpret_cast<NMLINK*>(lParam);
+            ShellExecuteW(hDlg, L"open", link->item.szUrl, nullptr, nullptr, SW_SHOWNORMAL);
+            return TRUE;
+        }
+        break;
+    }
+    case WM_COMMAND:
+        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL) {
+            EndDialog(hDlg, LOWORD(wParam));
+            return TRUE;
+        }
+        break;
+    case WM_CLOSE:
+        EndDialog(hDlg, IDCANCEL);
+        return TRUE;
+    }
+    return FALSE;
+}
+
+void show_about_dialog(HWND parent) {
+    INITCOMMONCONTROLSEX icc = { sizeof(icc), ICC_LINK_CLASS };
+    InitCommonControlsEx(&icc);
+    DialogBox(g_module, MAKEINTRESOURCE(IDD_ABOUT), parent, about_proc);
 }
