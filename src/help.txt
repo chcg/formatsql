@@ -159,42 +159,30 @@ while leaving the SQL itself untouched.
 DIALECTS
 ========
 Convert SQL function/keyword usage between ANSI, Snowflake, MS SQL,
-PostgreSQL, MySQL and Databricks. Only function/keyword names change;
-general formatting is untouched. Supported pairs (each also works in
-reverse):
+PostgreSQL, MySQL, SQLite and Databricks. Only function/keyword names
+change; general formatting is untouched.
 
-  ANSI <-> Snowflake
-    substring(name, 1, 3)         <->  substr(name, 1, 3)
-    character_length(name)       <->  length(name)
+The Dialects menu lists a "from <dialect>" entry for each dialect. Pick
+the one that matches your source SQL; the target is whatever you set in
+Settings > Dialect. Every from/to combination works.
 
-  ANSI <-> MS SQL
-    character_length(name)       <->  len(name)
+Conversion goes through a canonical (ANSI-standard) form, so:
+  - converting TO ANSI just normalises to standard spellings;
+  - converting to a vendor dialect also produces that vendor's idiomatic
+    spelling (e.g. ANSI coalesce(...) -> T-SQL isnull(...)).
 
-  Snowflake <-> MS SQL
-    iff(active, 'yes', 'no')     <->  iif(active, 'yes', 'no')
-    nvl(phone, email)            <->  isnull(phone, email)
-    length(name)                 <->  len(name)
+Concept-by-concept (canonical form shown first):
 
-  PostgreSQL <-> MS SQL
-    length(name)                 <->  len(name)
-    now()                        <->  getdate()
-
-  PostgreSQL <-> Snowflake
-    now()                        <->  current_timestamp
-
-  MySQL <-> MS SQL
-    if(active, 'yes', 'no')      <->  iif(active, 'yes', 'no')
-    ifnull(phone, email)         <->  isnull(phone, email)
-    now()                        <->  getdate()
-
-  MySQL <-> Snowflake
-    if(active, 'yes', 'no')      <->  iff(active, 'yes', 'no')
-    now()                        <->  current_timestamp
-
-  Databricks <-> Snowflake
-    collect_list(name)           <->  array_agg(name)
-    date_format(ts, fmt)         <->  to_char(ts, fmt)
-    from_unixtime(ts)            <->  to_timestamp(ts)
+  substring(s,1,3)     Snowflake/PostgreSQL/SQLite: substr(s,1,3)
+  char_length(s)       Snowflake/PostgreSQL/MySQL/SQLite: length(s)
+                       MS SQL: len(s)
+  coalesce(a,b)        Snowflake: nvl(a,b)   MS SQL: isnull(a,b)
+                       MySQL/SQLite/Databricks: ifnull(a,b)
+  iff(c,x,y)           MS SQL/SQLite: iif(c,x,y)   MySQL: if(c,x,y)
+  current_timestamp    MS SQL: getdate()   PostgreSQL/MySQL: now()
+  array_agg(x)         Databricks: collect_list(x)
+  to_char(ts,fmt)      Databricks: date_format(ts,fmt)
+  to_timestamp(ts)     Databricks: from_unixtime(ts)
 
 
 SETTINGS

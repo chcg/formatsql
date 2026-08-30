@@ -26,6 +26,13 @@ if !FAIL! neq 0 (
     exit /b 1
 )
 
+.\build\harness\test_dialects.exe
+if errorlevel 1 (
+    echo.
+    echo Dialect conversion tests failed.
+    exit /b 1
+)
+
 echo.
-echo All formatter regression tests passed.
+echo All formatter and dialect regression tests passed.
 exit /b 0

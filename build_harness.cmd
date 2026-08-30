@@ -20,5 +20,11 @@ cl /nologo /O2 /EHsc /std:c++17 /utf-8 ^
    /Fo:build\harness\
 if errorlevel 1 ( echo Build failed & exit /b 1 )
 
+cl /nologo /O2 /EHsc /std:c++17 /utf-8 ^
+   src\test_dialects.cpp src\dialects.cpp src\formatter.cpp ^
+   /Fe:build\harness\test_dialects.exe ^
+   /Fo:build\harness\
+if errorlevel 1 ( echo Build failed & exit /b 1 )
+
 echo Harness build complete.
 exit /b 0

@@ -74,7 +74,8 @@ static std::string ltrim(const std::string& s) {
 //
 // Returns the length of the run starting at sql[i], or 0 if none applies.
 // Line comments stop right before the newline so callers still see it.
-static size_t verbatim_run_len(const std::string& sql, size_t i) {
+// Declared in formatter.h so the dialect converter can share it.
+size_t verbatim_run_len(const std::string& sql, size_t i) {
     if (i + 1 < sql.size() && sql[i] == '/' && sql[i + 1] == '*') {
         size_t j = i + 2;
         while (j + 1 < sql.size() && !(sql[j] == '*' && sql[j + 1] == '/')) ++j;
@@ -101,7 +102,7 @@ static size_t verbatim_run_len(const std::string& sql, size_t i) {
 
 // Appends the verbatim run at sql[i] to `out` and advances `i` past it.
 // Returns false (no-op) if sql[i] doesn't start a comment/quoted literal.
-static bool copy_verbatim_run(const std::string& sql, size_t& i, std::string& out) {
+bool copy_verbatim_run(const std::string& sql, size_t& i, std::string& out) {
     size_t n = verbatim_run_len(sql, i);
     if (!n) return false;
     out.append(sql, i, n);
@@ -111,7 +112,7 @@ static bool copy_verbatim_run(const std::string& sql, size_t& i, std::string& ou
 
 // Same as copy_verbatim_run but discards the text — for scans that only
 // need to skip past a run without building an output string.
-static bool skip_verbatim_run(const std::string& sql, size_t& i) {
+bool skip_verbatim_run(const std::string& sql, size_t& i) {
     size_t n = verbatim_run_len(sql, i);
     if (!n) return false;
     i += n;

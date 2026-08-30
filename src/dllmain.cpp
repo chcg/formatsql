@@ -6,6 +6,7 @@
 #include <cctype>
 #include "formatter.h"
 #include "settings.h"
+#include "dialects.h"
 
 // ─── Notepad++ / Scintilla types ───────────────────────────────────────────────
 
@@ -67,7 +68,7 @@ static DWORD     g_format_save_tick = 0;
 
 static ShortcutKey g_shortcut_format = { true, true, true, 'F' }; // Ctrl+Alt+Shift+F
 
-// Slot layout (51 items, index 0-50):
+// Slot layout (42 items, index 0-41):
 //  0   Format SQL (Ctrl+Alt+Shift+F)
 //  1   Minify SQL
 //  2   Format and Copy
@@ -81,13 +82,13 @@ static ShortcutKey g_shortcut_format = { true, true, true, 'F' }; // Ctrl+Alt+Sh
 //  22-23  Boolean
 //  24-25  Change Casing
 //  26-30  Comment style
-//  31-46  Dialects
-//  47  --- separator
-//  48  Settings...
-//  49  About  (dialog with clickable repo link)
-//  50  Help   (opens help.txt via NPPM_DOOPEN)
+//  31-37  Dialects: "From <dialect>" x7, each converts to g_settings.dialect
+//  38  --- separator
+//  39  Settings...
+//  40  About  (dialog with clickable repo link)
+//  41  Help   (opens help.txt via NPPM_DOOPEN)
 
-static FuncItem g_funcs[51] = {};
+static FuncItem g_funcs[42] = {};
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -586,165 +587,19 @@ static void cmd_hash_to_dash()  { apply_transform(fn_hash_to_dash); }
 static void cmd_dash_to_hash()  { apply_transform(fn_dash_to_hash); }
 
 // ─── Dialect conversions ──────────────────────────────────────────────────────
+// Hub-and-spoke: the rule tables and the canonical-form logic live in
+// dialects.cpp. Each menu command fixes the *source* dialect; the *target* is
+// whatever is configured in Settings (g_settings.dialect), read at call time.
+// A non-capturing lambda decays to the plain function pointer apply_transform
+// wants. Converting a dialect to itself is a no-op (handled in convert_dialect).
 
-static std::string replace_fn(const std::string& sql, const char* from, const char* to) {
-    std::string out;
-    size_t n = strlen(from);
-    bool in_str = false; char str_d = 0;
-    for (size_t i = 0; i < sql.size(); ) {
-        char c = sql[i];
-        if (in_str) { out += c; if (c == str_d && !(i+1 < sql.size() && sql[i+1] == str_d)) in_str = false; ++i; continue; }
-        if (c == '\'' || c == '"') { in_str = true; str_d = c; out += c; ++i; continue; }
-        if (i + n <= sql.size()) {
-            bool match = true;
-            for (size_t k = 0; k < n && match; ++k)
-                match = (std::tolower((unsigned char)sql[i+k]) == std::tolower((unsigned char)from[k]));
-            if (match && (i == 0 || (!std::isalnum((unsigned char)sql[i-1]) && sql[i-1] != '_')))
-                { out += to; i += n; continue; }
-        }
-        out += c; ++i;
-    }
-    return out;
-}
-
-static std::string replace_kw(const std::string& sql, const char* from, const char* to) {
-    std::string out;
-    size_t n = strlen(from);
-    bool in_str = false; char str_d = 0;
-    for (size_t i = 0; i < sql.size(); ) {
-        char c = sql[i];
-        if (in_str) { out += c; if (c == str_d && !(i+1 < sql.size() && sql[i+1] == str_d)) in_str = false; ++i; continue; }
-        if (c == '\'' || c == '"') { in_str = true; str_d = c; out += c; ++i; continue; }
-        if (i + n <= sql.size()) {
-            bool match = true;
-            for (size_t k = 0; k < n && match; ++k)
-                match = (std::tolower((unsigned char)sql[i+k]) == std::tolower((unsigned char)from[k]));
-            if (match) {
-                bool wb_b = (i == 0 || (!std::isalnum((unsigned char)sql[i-1]) && sql[i-1] != '_'));
-                bool wb_a = (i+n >= sql.size() || (!std::isalnum((unsigned char)sql[i+n]) && sql[i+n] != '_'));
-                if (wb_b && wb_a) { out += to; i += n; continue; }
-            }
-        }
-        out += c; ++i;
-    }
-    return out;
-}
-
-static std::string fn_ansi_to_sf(const std::string& s) {
-    auto r = replace_fn(s, "SUBSTRING(",        "SUBSTR(");
-    r = replace_fn(r, "CHARACTER_LENGTH(", "LENGTH(");
-    r = replace_fn(r, "CHAR_LENGTH(",      "LENGTH(");
-    return r;
-}
-static std::string fn_sf_to_ansi(const std::string& s) {
-    auto r = replace_fn(s, "SUBSTR(",  "SUBSTRING(");
-    r = replace_fn(r, "IFNULL(",  "COALESCE(");
-    r = replace_fn(r, "NVL(",     "COALESCE(");
-    return r;
-}
-static std::string fn_ansi_to_mssql(const std::string& s) {
-    auto r = replace_fn(s, "CHARACTER_LENGTH(", "LEN(");
-    r = replace_fn(r, "CHAR_LENGTH(",      "LEN(");
-    return r;
-}
-static std::string fn_mssql_to_ansi(const std::string& s) {
-    auto r = replace_fn(s, "LEN(",      "CHAR_LENGTH(");
-    r = replace_fn(r, "ISNULL(",   "COALESCE(");
-    r = replace_fn(r, "GETDATE()", "CURRENT_TIMESTAMP");
-    return r;
-}
-static std::string fn_sf_to_mssql(const std::string& s) {
-    auto r = replace_fn(s, "IFF(",    "IIF(");
-    r = replace_fn(r, "IFNULL(",  "ISNULL(");
-    r = replace_fn(r, "NVL(",     "ISNULL(");
-    r = replace_fn(r, "LENGTH(",  "LEN(");
-    r = replace_fn(r, "SUBSTR(",  "SUBSTRING(");
-    return r;
-}
-static std::string fn_mssql_to_sf(const std::string& s) {
-    auto r = replace_fn(s, "IIF(",       "IFF(");
-    r = replace_fn(r, "ISNULL(",     "NVL(");
-    r = replace_fn(r, "LEN(",        "LENGTH(");
-    r = replace_fn(r, "SUBSTRING(",  "SUBSTR(");
-    r = replace_fn(r, "GETDATE()",   "CURRENT_TIMESTAMP");
-    return r;
-}
-static std::string fn_pg_to_mssql(const std::string& s) {
-    auto r = replace_fn(s, "LENGTH(", "LEN(");
-    r = replace_fn(r, "SUBSTR(",  "SUBSTRING(");
-    r = replace_fn(r, "NOW()",    "GETDATE()");
-    return r;
-}
-static std::string fn_mssql_to_pg(const std::string& s) {
-    auto r = replace_fn(s, "LEN(",       "LENGTH(");
-    r = replace_fn(r, "SUBSTRING(", "SUBSTR(");
-    r = replace_fn(r, "ISNULL(",    "COALESCE(");
-    r = replace_fn(r, "GETDATE()",  "NOW()");
-    return r;
-}
-static std::string fn_pg_to_sf(const std::string& s) {
-    return replace_kw(s, "NOW()", "CURRENT_TIMESTAMP");
-}
-static std::string fn_sf_to_pg(const std::string& s) {
-    auto r = replace_fn(s, "NVL(",    "COALESCE(");
-    r = replace_fn(r, "IFNULL(", "COALESCE(");
-    r = replace_kw(r, "CURRENT_TIMESTAMP", "NOW()");
-    return r;
-}
-static std::string fn_mysql_to_mssql(const std::string& s) {
-    auto r = replace_fn(s, "IFNULL(", "ISNULL(");
-    r = replace_fn(r, "IF(",      "IIF(");
-    r = replace_fn(r, "NOW()",    "GETDATE()");
-    return r;
-}
-static std::string fn_mssql_to_mysql(const std::string& s) {
-    auto r = replace_fn(s, "ISNULL(",   "IFNULL(");
-    r = replace_fn(r, "IIF(",      "IF(");
-    r = replace_fn(r, "GETDATE()", "NOW()");
-    return r;
-}
-static std::string fn_mysql_to_sf(const std::string& s) {
-    auto r = replace_fn(s, "IF(",     "IFF(");
-    r = replace_fn(r, "IFNULL(",  "NVL(");
-    r = replace_kw(r, "NOW()",    "CURRENT_TIMESTAMP");
-    return r;
-}
-static std::string fn_sf_to_mysql(const std::string& s) {
-    auto r = replace_fn(s, "IFF(",  "IF(");
-    r = replace_fn(r, "NVL(",   "IFNULL(");
-    r = replace_kw(r, "CURRENT_TIMESTAMP", "NOW()");
-    return r;
-}
-static std::string fn_databricks_to_sf(const std::string& s) {
-    auto r = replace_fn(s, "COLLECT_LIST(",  "ARRAY_AGG(");
-    r = replace_fn(r, "COLLECT_SET(",   "ARRAY_AGG(");
-    r = replace_fn(r, "DATE_FORMAT(",   "TO_CHAR(");
-    r = replace_fn(r, "FROM_UNIXTIME(", "TO_TIMESTAMP(");
-    return r;
-}
-static std::string fn_sf_to_databricks(const std::string& s) {
-    auto r = replace_fn(s, "ARRAY_AGG(",    "COLLECT_LIST(");
-    r = replace_fn(r, "TO_CHAR(",      "DATE_FORMAT(");
-    r = replace_fn(r, "TO_TIMESTAMP(", "FROM_UNIXTIME(");
-    return r;
-}
-
-static void cmd_ansi_to_sf()       { apply_transform(fn_ansi_to_sf); }
-static void cmd_sf_to_ansi()       { apply_transform(fn_sf_to_ansi); }
-static void cmd_ansi_to_mssql()    { apply_transform(fn_ansi_to_mssql); }
-static void cmd_mssql_to_ansi()    { apply_transform(fn_mssql_to_ansi); }
-static void cmd_sf_to_mssql()      { apply_transform(fn_sf_to_mssql); }
-static void cmd_mssql_to_sf()      { apply_transform(fn_mssql_to_sf); }
-static void cmd_pg_to_mssql()      { apply_transform(fn_pg_to_mssql); }
-static void cmd_mssql_to_pg()      { apply_transform(fn_mssql_to_pg); }
-static void cmd_pg_to_sf()         { apply_transform(fn_pg_to_sf); }
-static void cmd_sf_to_pg()         { apply_transform(fn_sf_to_pg); }
-static void cmd_mysql_to_mssql()   { apply_transform(fn_mysql_to_mssql); }
-static void cmd_mssql_to_mysql()   { apply_transform(fn_mssql_to_mysql); }
-static void cmd_mysql_to_sf()      { apply_transform(fn_mysql_to_sf); }
-static void cmd_sf_to_mysql()      { apply_transform(fn_sf_to_mysql); }
-static void cmd_databricks_to_sf() { apply_transform(fn_databricks_to_sf); }
-static void cmd_sf_to_databricks() { apply_transform(fn_sf_to_databricks); }
+static void cmd_conv_from_ansi()       { apply_transform([](const std::string& s){ return convert_dialect(s, Dialect::ANSI,       g_settings.dialect); }); }
+static void cmd_conv_from_sf()         { apply_transform([](const std::string& s){ return convert_dialect(s, Dialect::Snowflake,  g_settings.dialect); }); }
+static void cmd_conv_from_pg()         { apply_transform([](const std::string& s){ return convert_dialect(s, Dialect::PostgreSQL, g_settings.dialect); }); }
+static void cmd_conv_from_mssql()      { apply_transform([](const std::string& s){ return convert_dialect(s, Dialect::MSSQL,      g_settings.dialect); }); }
+static void cmd_conv_from_mysql()      { apply_transform([](const std::string& s){ return convert_dialect(s, Dialect::MySQL,      g_settings.dialect); }); }
+static void cmd_conv_from_sqlite()     { apply_transform([](const std::string& s){ return convert_dialect(s, Dialect::SQLite,     g_settings.dialect); }); }
+static void cmd_conv_from_databricks() { apply_transform([](const std::string& s){ return convert_dialect(s, Dialect::Databricks, g_settings.dialect); }); }
 
 static void cmd_settings() { show_settings_dialog(g_npp._nppHandle); }
 
@@ -783,7 +638,7 @@ static HMENU find_my_menu() {
 }
 
 static void build_all_submenus(HMENU hMine) {
-    // Grab cmdIDs for slots 3-46
+    // Grab cmdIDs for slots 3-37
     UINT id_fos_on         = g_funcs[3]._cmdID,  id_fos_off        = g_funcs[4]._cmdID;
     UINT id_paste_lines    = g_funcs[6]._cmdID,  id_paste_comma    = g_funcs[7]._cmdID;
     UINT id_paste_comma_sp = g_funcs[8]._cmdID,  id_paste_space    = g_funcs[9]._cmdID;
@@ -798,19 +653,15 @@ static void build_all_submenus(HMENU hMine) {
     UINT id_dash_block     = g_funcs[26]._cmdID, id_block_dash     = g_funcs[27]._cmdID;
     UINT id_strip          = g_funcs[28]._cmdID;
     UINT id_hash_dash      = g_funcs[29]._cmdID, id_dash_hash      = g_funcs[30]._cmdID;
-    UINT id_ansi_sf        = g_funcs[31]._cmdID, id_sf_ansi        = g_funcs[32]._cmdID;
-    UINT id_ansi_mssql     = g_funcs[33]._cmdID, id_mssql_ansi     = g_funcs[34]._cmdID;
-    UINT id_sf_mssql       = g_funcs[35]._cmdID, id_mssql_sf       = g_funcs[36]._cmdID;
-    UINT id_pg_mssql       = g_funcs[37]._cmdID, id_mssql_pg       = g_funcs[38]._cmdID;
-    UINT id_pg_sf          = g_funcs[39]._cmdID, id_sf_pg          = g_funcs[40]._cmdID;
-    UINT id_mysql_mssql    = g_funcs[41]._cmdID, id_mssql_mysql    = g_funcs[42]._cmdID;
-    UINT id_mysql_sf       = g_funcs[43]._cmdID, id_sf_mysql       = g_funcs[44]._cmdID;
-    UINT id_db_sf          = g_funcs[45]._cmdID, id_sf_db          = g_funcs[46]._cmdID;
+    UINT id_from_ansi       = g_funcs[31]._cmdID, id_from_sf        = g_funcs[32]._cmdID;
+    UINT id_from_pg         = g_funcs[33]._cmdID, id_from_mssql     = g_funcs[34]._cmdID;
+    UINT id_from_mysql      = g_funcs[35]._cmdID, id_from_sqlite    = g_funcs[36]._cmdID;
+    UINT id_from_databricks = g_funcs[37]._cmdID;
 
-    // Remove slots 3-46 (44 items) from high to low.
-    // After deletion: pos 3 = separator (slot 47), pos 4 = Settings (slot 48),
-    // pos 5 = About (slot 49), pos 6 = Help (slot 50).
-    for (int i = 46; i >= 3; --i) DeleteMenu(hMine, i, MF_BYPOSITION);
+    // Remove slots 3-37 (35 items) from high to low.
+    // After deletion: pos 3 = separator (slot 38), pos 4 = Settings (slot 39),
+    // pos 5 = About (slot 40), pos 6 = Help (slot 41).
+    for (int i = 37; i >= 3; --i) DeleteMenu(hMine, i, MF_BYPOSITION);
 
     HMENU hFOS = CreatePopupMenu();
     AppendMenuW(hFOS, MF_STRING, id_fos_on,  L"On");
@@ -870,30 +721,17 @@ static void build_all_submenus(HMENU hMine) {
     AppendMenuW(hC, MF_STRING,    id_strip,      L"Strip comments");
     InsertMenuW(hMine, 11, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hC, L"Comment Style");
 
+    // Pick the source dialect; the target is g_settings.dialect (Settings > Dialect).
     HMENU hD = CreatePopupMenu();
-    AppendMenuW(hD, MF_STRING,    id_ansi_sf,     L"ANSI \x2192 Snowflake");
-    AppendMenuW(hD, MF_STRING,    id_sf_ansi,     L"Snowflake \x2192 ANSI");
+    AppendMenuW(hD, MF_STRING | MF_GRAYED, 0, L"Convert to the dialect set in Settings, from:");
     AppendMenuW(hD, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(hD, MF_STRING,    id_ansi_mssql,  L"ANSI \x2192 MS SQL");
-    AppendMenuW(hD, MF_STRING,    id_mssql_ansi,  L"MS SQL \x2192 ANSI");
-    AppendMenuW(hD, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(hD, MF_STRING,    id_sf_mssql,    L"Snowflake \x2192 MS SQL");
-    AppendMenuW(hD, MF_STRING,    id_mssql_sf,    L"MS SQL \x2192 Snowflake");
-    AppendMenuW(hD, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(hD, MF_STRING,    id_pg_mssql,    L"PostgreSQL \x2192 MS SQL");
-    AppendMenuW(hD, MF_STRING,    id_mssql_pg,    L"MS SQL \x2192 PostgreSQL");
-    AppendMenuW(hD, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(hD, MF_STRING,    id_pg_sf,       L"PostgreSQL \x2192 Snowflake");
-    AppendMenuW(hD, MF_STRING,    id_sf_pg,       L"Snowflake \x2192 PostgreSQL");
-    AppendMenuW(hD, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(hD, MF_STRING,    id_mysql_mssql, L"MySQL \x2192 MS SQL");
-    AppendMenuW(hD, MF_STRING,    id_mssql_mysql, L"MS SQL \x2192 MySQL");
-    AppendMenuW(hD, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(hD, MF_STRING,    id_mysql_sf,    L"MySQL \x2192 Snowflake");
-    AppendMenuW(hD, MF_STRING,    id_sf_mysql,    L"Snowflake \x2192 MySQL");
-    AppendMenuW(hD, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(hD, MF_STRING,    id_db_sf,       L"Databricks \x2192 Snowflake");
-    AppendMenuW(hD, MF_STRING,    id_sf_db,       L"Snowflake \x2192 Databricks");
+    AppendMenuW(hD, MF_STRING,    id_from_ansi,       L"ANSI  (generic)");
+    AppendMenuW(hD, MF_STRING,    id_from_sf,         L"Snowflake");
+    AppendMenuW(hD, MF_STRING,    id_from_pg,         L"PostgreSQL");
+    AppendMenuW(hD, MF_STRING,    id_from_mssql,      L"MS SQL  (T-SQL)");
+    AppendMenuW(hD, MF_STRING,    id_from_mysql,      L"MySQL / MariaDB");
+    AppendMenuW(hD, MF_STRING,    id_from_sqlite,     L"SQLite");
+    AppendMenuW(hD, MF_STRING,    id_from_databricks, L"Databricks  (Spark SQL)");
     InsertMenuW(hMine, 12, MF_BYPOSITION | MF_POPUP, (UINT_PTR)hD, L"Dialects");
 }
 
@@ -906,14 +744,14 @@ __declspec(dllexport) const wchar_t* getName() { return L"Datamodder SQL Formatt
 __declspec(dllexport) void setInfo(NppData d) { g_npp = d; load_settings(); }
 
 __declspec(dllexport) FuncItem* getFuncsArray(int* n) {
-    *n = 51;
+    *n = 42;
     return g_funcs;
 }
 
 static void try_build_menu() {
     if (g_menu_built) return;
     HMENU hMine = find_my_menu();
-    if (!hMine || GetMenuItemCount(hMine) < 51) return;
+    if (!hMine || GetMenuItemCount(hMine) < 42) return;
     build_all_submenus(hMine);
     g_menu_built = true;
     set_format_on_save_checkmark();
@@ -980,26 +818,17 @@ BOOL APIENTRY DllMain(HINSTANCE h, DWORD reason, LPVOID) {
         init_func(28, L"Strip comments",               cmd_strip_comments);
         init_func(29, L"# \x2192 --",                  cmd_hash_to_dash);
         init_func(30, L"-- \x2192 #",                  cmd_dash_to_hash);
-        init_func(31, L"ANSI \x2192 Snowflake",        cmd_ansi_to_sf);
-        init_func(32, L"Snowflake \x2192 ANSI",        cmd_sf_to_ansi);
-        init_func(33, L"ANSI \x2192 MS SQL",           cmd_ansi_to_mssql);
-        init_func(34, L"MS SQL \x2192 ANSI",           cmd_mssql_to_ansi);
-        init_func(35, L"Snowflake \x2192 MS SQL",      cmd_sf_to_mssql);
-        init_func(36, L"MS SQL \x2192 Snowflake",      cmd_mssql_to_sf);
-        init_func(37, L"PostgreSQL \x2192 MS SQL",     cmd_pg_to_mssql);
-        init_func(38, L"MS SQL \x2192 PostgreSQL",     cmd_mssql_to_pg);
-        init_func(39, L"PostgreSQL \x2192 Snowflake",  cmd_pg_to_sf);
-        init_func(40, L"Snowflake \x2192 PostgreSQL",  cmd_sf_to_pg);
-        init_func(41, L"MySQL \x2192 MS SQL",          cmd_mysql_to_mssql);
-        init_func(42, L"MS SQL \x2192 MySQL",          cmd_mssql_to_mysql);
-        init_func(43, L"MySQL \x2192 Snowflake",       cmd_mysql_to_sf);
-        init_func(44, L"Snowflake \x2192 MySQL",       cmd_sf_to_mysql);
-        init_func(45, L"Databricks \x2192 Snowflake",  cmd_databricks_to_sf);
-        init_func(46, L"Snowflake \x2192 Databricks",  cmd_sf_to_databricks);
-        init_func(47, L"-",                            nullptr);
-        init_func(48, L"Settings...",                  cmd_settings);
-        init_func(49, L"About",                        cmd_about);
-        init_func(50, L"Help",                         cmd_help);
+        init_func(31, L"Dialect: from ANSI",           cmd_conv_from_ansi);
+        init_func(32, L"Dialect: from Snowflake",       cmd_conv_from_sf);
+        init_func(33, L"Dialect: from PostgreSQL",      cmd_conv_from_pg);
+        init_func(34, L"Dialect: from MS SQL",          cmd_conv_from_mssql);
+        init_func(35, L"Dialect: from MySQL",           cmd_conv_from_mysql);
+        init_func(36, L"Dialect: from SQLite",          cmd_conv_from_sqlite);
+        init_func(37, L"Dialect: from Databricks",      cmd_conv_from_databricks);
+        init_func(38, L"-",                            nullptr);
+        init_func(39, L"Settings...",                  cmd_settings);
+        init_func(40, L"About",                        cmd_about);
+        init_func(41, L"Help",                         cmd_help);
     }
     return TRUE;
 }

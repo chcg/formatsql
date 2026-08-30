@@ -21,7 +21,7 @@ if errorlevel 1 ( echo Resource compile failed & exit /b 1 )
 
 :: -- Compile and link --
 cl /LD /O2 /EHsc /std:c++17 /MT /utf-8 ^
-   src\dllmain.cpp src\formatter.cpp src\settings_dialog.cpp ^
+   src\dllmain.cpp src\formatter.cpp src\settings_dialog.cpp src\dialects.cpp ^
    build\settings.res ^
    /Fe:build\FormatSQL.dll ^
    /Fo:build\ ^
