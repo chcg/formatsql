@@ -2,3 +2,4 @@ build/
 build_log*.txt
 release_staging/
 FormatSQL.zip
+tests/actual_*.txt

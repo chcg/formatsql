@@ -63,6 +63,61 @@ static std::string ltrim(const std::string& s) {
     return s.substr(i);
 }
 
+// ─── verbatim runs: comments and quoted literals ──────────────────────────────
+// A single shared primitive for the pattern repeated throughout this file:
+// "skip over block comments, line comments, and quoted literals without
+// looking inside them". Quoted literals cover '...', "...", and `...`
+// (backtick-quoted identifiers, e.g. MySQL/Databricks `order`) so that a
+// reserved word used as a quoted identifier is never mistaken for the
+// keyword itself by a later pass. All three quote kinds use the same
+// doubled-quote escape ('' / "" / ``) for a literal quote character inside.
+//
+// Returns the length of the run starting at sql[i], or 0 if none applies.
+// Line comments stop right before the newline so callers still see it.
+static size_t verbatim_run_len(const std::string& sql, size_t i) {
+    if (i + 1 < sql.size() && sql[i] == '/' && sql[i + 1] == '*') {
+        size_t j = i + 2;
+        while (j + 1 < sql.size() && !(sql[j] == '*' && sql[j + 1] == '/')) ++j;
+        return std::min(j + 2, sql.size()) - i;
+    }
+    if (i + 1 < sql.size() && sql[i] == '-' && sql[i + 1] == '-') {
+        size_t j = sql.find('\n', i);
+        return (j == std::string::npos ? sql.size() : j) - i;
+    }
+    if (sql[i] == '\'' || sql[i] == '"' || sql[i] == '`') {
+        char q = sql[i];
+        size_t j = i + 1;
+        while (j < sql.size()) {
+            if (sql[j] == q) {
+                if (j + 1 < sql.size() && sql[j + 1] == q) { j += 2; continue; }
+                ++j; break;
+            }
+            ++j;
+        }
+        return j - i;
+    }
+    return 0;
+}
+
+// Appends the verbatim run at sql[i] to `out` and advances `i` past it.
+// Returns false (no-op) if sql[i] doesn't start a comment/quoted literal.
+static bool copy_verbatim_run(const std::string& sql, size_t& i, std::string& out) {
+    size_t n = verbatim_run_len(sql, i);
+    if (!n) return false;
+    out.append(sql, i, n);
+    i += n;
+    return true;
+}
+
+// Same as copy_verbatim_run but discards the text — for scans that only
+// need to skip past a run without building an output string.
+static bool skip_verbatim_run(const std::string& sql, size_t& i) {
+    size_t n = verbatim_run_len(sql, i);
+    if (!n) return false;
+    i += n;
+    return true;
+}
+
 // ─── keyword table ────────────────────────────────────────────────────────────
 
 static const char* SQL_KEYWORDS[] = {
@@ -97,27 +152,10 @@ static std::string normalize(const std::string& sql) {
     std::string out;
     out.reserve(sql.size());
     size_t i = 0;
-    bool in_lc = false, in_bc = false, in_str = false;
-    char str_d = 0;
 
     while (i < sql.size()) {
         char c = sql[i];
-        if (!in_str && !in_lc && c == '/' && i+1 < sql.size() && sql[i+1] == '*') {
-            in_bc = true; out += c; out += sql[++i]; ++i; continue;
-        }
-        if (in_bc) {
-            out += c;
-            if (c == '*' && i+1 < sql.size() && sql[i+1] == '/') { out += sql[++i]; in_bc = false; }
-            ++i; continue;
-        }
-        if (!in_str && c == '-' && i+1 < sql.size() && sql[i+1] == '-') in_lc = true;
-        if (in_lc) { out += c; if (c == '\n') in_lc = false; ++i; continue; }
-        if (!in_str && (c == '\'' || c == '"')) { in_str = true; str_d = c; out += c; ++i; continue; }
-        if (in_str) {
-            out += c;
-            if (c == str_d && !(i+1 < sql.size() && sql[i+1] == str_d)) in_str = false;
-            ++i; continue;
-        }
+        if (copy_verbatim_run(sql, i, out)) continue;
         if (std::isalpha((unsigned char)c) || c == '_') {
             size_t start = i;
             while (i < sql.size() && (std::isalnum((unsigned char)sql[i]) || sql[i] == '_')) ++i;
@@ -139,22 +177,8 @@ static std::string normalize(const std::string& sql) {
 // (where pos points just after "case").
 static size_t find_case_end(const std::string& s, size_t pos) {
     int depth = 1;
-    bool in_lc = false, in_bc = false, in_str = false;
-    char str_d = 0;
     while (pos < s.size() && depth > 0) {
-        char c = s[pos];
-        if (in_str) {
-            if (c == str_d && !(pos+1 < s.size() && s[pos+1] == str_d)) in_str = false;
-            ++pos; continue;
-        }
-        if (in_lc) { if (c == '\n') in_lc = false; ++pos; continue; }
-        if (in_bc) {
-            if (c == '*' && pos+1 < s.size() && s[pos+1] == '/') { in_bc = false; ++pos; }
-            ++pos; continue;
-        }
-        if (c == '/' && pos+1 < s.size() && s[pos+1] == '*') { in_bc = true; pos += 2; continue; }
-        if (c == '-' && pos+1 < s.size() && s[pos+1] == '-') { in_lc = true; pos += 2; continue; }
-        if (c == '\'' || c == '"') { in_str = true; str_d = c; ++pos; continue; }
+        if (skip_verbatim_run(s, pos)) continue;
         bool pb = (pos == 0) || word_boundary(s[pos-1]);
         if (pb) {
             auto cmp4 = [&](const char* w) {
@@ -203,12 +227,15 @@ static std::string expand_case(const std::string& block, int case_col) {
 
     while (i < block.size()) {
         char c = block[i];
+        // Note: block has already been through collapse_ws(), so newlines are
+        // gone — only quote protection makes sense here, not comment-skipping
+        // (a line comment would have no terminator left to stop at).
         if (in_str) {
             out += c;
             if (c == str_d && !(i+1 < block.size() && block[i+1] == str_d)) in_str = false;
             ++i; continue;
         }
-        if (c == '\'' || c == '"') { in_str = true; str_d = c; out += c; ++i; continue; }
+        if (c == '\'' || c == '"' || c == '`') { in_str = true; str_d = c; out += c; ++i; continue; }
         if (c == '(') { depth++; out += c; ++i; continue; }
         if (c == ')') { depth--; out += c; ++i; continue; }
 
@@ -262,27 +289,10 @@ static std::string format_case_stmts(const std::string& sql) {
 
     std::string out;
     size_t i = 0;
-    bool in_lc = false, in_bc = false, in_str = false;
-    char str_d = 0;
 
     while (i < sql.size()) {
         char c = sql[i];
-        if (!in_str && !in_lc && c == '/' && i+1 < sql.size() && sql[i+1] == '*') {
-            in_bc = true; out += c; out += sql[++i]; ++i; continue;
-        }
-        if (in_bc) {
-            out += c;
-            if (c == '*' && i+1 < sql.size() && sql[i+1] == '/') { out += sql[++i]; in_bc = false; }
-            ++i; continue;
-        }
-        if (!in_str && c == '-' && i+1 < sql.size() && sql[i+1] == '-') in_lc = true;
-        if (in_lc) { out += c; if (c == '\n') in_lc = false; ++i; continue; }
-        if (!in_str && (c == '\'' || c == '"')) { in_str = true; str_d = c; out += c; ++i; continue; }
-        if (in_str) {
-            out += c;
-            if (c == str_d && !(i+1 < sql.size() && sql[i+1] == str_d)) in_str = false;
-            ++i; continue;
-        }
+        if (copy_verbatim_run(sql, i, out)) continue;
         bool pb = (i == 0) || word_boundary(sql[i-1]);
         if (pb && i+4 <= sql.size() &&
             lc(sql[i])=='c' && lc(sql[i+1])=='a' && lc(sql[i+2])=='s' && lc(sql[i+3])=='e' &&
@@ -317,27 +327,10 @@ static std::string apply_op_spacing(const std::string& sql) {
     std::string out;
     out.reserve(sql.size() + 64);
     size_t i = 0;
-    bool in_lc = false, in_bc = false, in_str = false;
-    char str_d = 0;
 
     while (i < sql.size()) {
         char c = sql[i];
-        if (!in_str && !in_lc && c == '/' && i+1 < sql.size() && sql[i+1] == '*') {
-            in_bc = true; out += c; out += sql[++i]; ++i; continue;
-        }
-        if (in_bc) {
-            out += c;
-            if (c == '*' && i+1 < sql.size() && sql[i+1] == '/') { out += sql[++i]; in_bc = false; }
-            ++i; continue;
-        }
-        if (!in_str && c == '-' && i+1 < sql.size() && sql[i+1] == '-') in_lc = true;
-        if (in_lc) { out += c; if (c == '\n') in_lc = false; ++i; continue; }
-        if (!in_str && (c == '\'' || c == '"')) { in_str = true; str_d = c; out += c; ++i; continue; }
-        if (in_str) {
-            out += c;
-            if (c == str_d && !(i+1 < sql.size() && sql[i+1] == str_d)) in_str = false;
-            ++i; continue;
-        }
+        if (copy_verbatim_run(sql, i, out)) continue;
         const Op* found = nullptr;
         for (const Op* op = OPS; op->s; ++op) {
             if ((int)sql.size() - (int)i >= op->n && sql.compare(i, op->n, op->s) == 0) {
@@ -407,8 +400,6 @@ static std::string split_clauses(const std::string& sql) {
     std::string out;
     out.reserve(sql.size() * 2);
     size_t i = 0;
-    bool in_lc = false, in_bc = false, in_str = false;
-    char str_d = 0;
     int  paren = 0;
     bool in_sel = false;
     std::vector<PT> paren_stack;
@@ -434,22 +425,7 @@ static std::string split_clauses(const std::string& sql) {
 
     while (i < sql.size()) {
         char c = sql[i];
-        if (!in_str && !in_lc && c == '/' && i+1 < sql.size() && sql[i+1] == '*') {
-            in_bc = true; out += c; out += sql[++i]; ++i; continue;
-        }
-        if (in_bc) {
-            out += c;
-            if (c == '*' && i+1 < sql.size() && sql[i+1] == '/') { out += sql[++i]; in_bc = false; }
-            ++i; continue;
-        }
-        if (!in_str && c == '-' && i+1 < sql.size() && sql[i+1] == '-') in_lc = true;
-        if (in_lc) { out += c; if (c == '\n') in_lc = false; ++i; continue; }
-        if (!in_str && (c == '\'' || c == '"')) { in_str = true; str_d = c; out += c; ++i; continue; }
-        if (in_str) {
-            out += c;
-            if (c == str_d && !(i+1 < sql.size() && sql[i+1] == str_d)) in_str = false;
-            ++i; continue;
-        }
+        if (copy_verbatim_run(sql, i, out)) continue;
         if (c == '(') {
             size_t j = i + 1;
             while (j < sql.size() && sql[j] == ' ') ++j;
@@ -1013,27 +989,10 @@ static std::string apply_final_case(const std::string& sql) {
     std::string out;
     out.reserve(sql.size());
     size_t i = 0;
-    bool in_lc = false, in_bc = false, in_str = false;
-    char str_d = 0;
 
     while (i < sql.size()) {
         char c = sql[i];
-        if (!in_str && !in_lc && c == '/' && i+1 < sql.size() && sql[i+1] == '*') {
-            in_bc = true; out += c; out += sql[++i]; ++i; continue;
-        }
-        if (in_bc) {
-            out += c;
-            if (c == '*' && i+1 < sql.size() && sql[i+1] == '/') { out += sql[++i]; in_bc = false; }
-            ++i; continue;
-        }
-        if (!in_str && c == '-' && i+1 < sql.size() && sql[i+1] == '-') in_lc = true;
-        if (in_lc) { out += c; if (c == '\n') in_lc = false; ++i; continue; }
-        if (!in_str && (c == '\'' || c == '"')) { in_str = true; str_d = c; out += c; ++i; continue; }
-        if (in_str) {
-            out += c;
-            if (c == str_d && !(i+1 < sql.size() && sql[i+1] == str_d)) in_str = false;
-            ++i; continue;
-        }
+        if (copy_verbatim_run(sql, i, out)) continue;
         if (std::isalpha((unsigned char)c) || c == '_') {
             size_t start = i;
             while (i < sql.size() && (std::isalnum((unsigned char)sql[i]) || sql[i] == '_')) ++i;
@@ -1348,39 +1307,21 @@ static std::string format_window_fns(const std::string& text) {
 std::string minify_sql(const std::string& sql) {
     std::string out;
     out.reserve(sql.size());
-    bool in_str = false; char str_d = 0;
-    bool in_bc  = false;
     bool sp = false; // deferred space
 
     size_t i = 0;
     while (i < sql.size()) {
         char c = sql[i];
 
-        // Block comment: skip
-        if (!in_str && c == '/' && i+1 < sql.size() && sql[i+1] == '*') {
-            in_bc = true; i += 2; continue;
-        }
-        if (in_bc) {
-            if (c == '*' && i+1 < sql.size() && sql[i+1] == '/') { in_bc = false; i += 2; }
-            else ++i;
-            continue;
-        }
-
-        // Line comment: skip to end of line
-        if (!in_str && c == '-' && i+1 < sql.size() && sql[i+1] == '-') {
-            while (i < sql.size() && sql[i] != '\n') ++i;
-            continue;
-        }
-
-        // String literal: copy verbatim
-        if (!in_str && (c == '\'' || c == '"')) {
+        size_t n = verbatim_run_len(sql, i);
+        if (n) {
+            bool is_comment = (c == '/' && sql[i+1] == '*') || (c == '-' && sql[i+1] == '-');
+            if (is_comment) { i += n; continue; }  // comments: drop entirely
+            // Quoted literal ('/"/`): copy verbatim, same as elsewhere in the pipeline.
             if (sp && !out.empty()) { out += ' '; sp = false; }
-            in_str = true; str_d = c; out += c; ++i; continue;
-        }
-        if (in_str) {
-            out += c;
-            if (c == str_d && !(i+1 < sql.size() && sql[i+1] == str_d)) in_str = false;
-            ++i; continue;
+            out.append(sql, i, n);
+            i += n;
+            continue;
         }
 
         // Whitespace → deferred single space
