@@ -334,3 +334,10 @@ SELECT DISTINCT ON (a.customer_id) a.customer_id, a.total FROM a JOIN b USING (c
 -- get one item per line aligned under the first, like the SELECT list.
 
 SELECT a.id, b.name, count(*) c FROM orders a, customers b WHERE a.cust_id = b.id GROUP BY a.id, b.name ORDER BY c DESC, a.id ASC
+
+
+-- ─── 31. Nested derived tables (subquery inside a subquery) ────────────────
+-- Expected: each inner SELECT is re-indented relative to its own parent,
+-- not left at the outer subquery's indentation.
+
+SELECT x FROM (SELECT y AS x FROM (SELECT z AS y FROM t WHERE z > 0) inner_t WHERE x < 100) outer_t

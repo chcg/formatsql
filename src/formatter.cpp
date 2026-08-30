@@ -1360,7 +1360,7 @@ static std::string apply_final_case(const std::string& sql) {
 // finds "(select" on a line, determines the column of 'select', and re-indents
 // every subsequent line in that subquery block accordingly.
 
-static std::string format_subqueries(const std::string& text) {
+static std::string format_subqueries_once(const std::string& text) {
     auto lines = split_lines(text);
     std::vector<std::string> out;
     size_t i = 0;
@@ -1442,25 +1442,47 @@ static std::string format_subqueries(const std::string& text) {
         // The opening line stays as-is (outer clause + '(select ...' already aligned)
         out.push_back(line);
 
-        // Re-indent middle lines
+        // Re-indent this block's lines into a temporary buffer, then recurse so
+        // a nested "(select ...)" inside gets aligned to its own parent.
+        std::vector<std::string> block;
         for (size_t j = i + 1; j < close_line; ++j)
-            out.push_back(reindent_line(lines[j], ""));
+            block.push_back(reindent_line(lines[j], ""));
 
-        // Re-indent the close line: content before ')' + ')' + tail
+        std::string attach_tail;   // ')' + tail to glue onto the previous line
         if (close_line > i) {
             std::string cl = lines[close_line];
             std::string before = rtrim(cl.substr(0, close_pos2));
             std::string from_close = cl.substr(close_pos2);  // ')' + tail
             if (rtrim(before).empty())
-                out.back() += from_close;  // no content before ')': attach to previous line
+                attach_tail = from_close;
             else
-                out.push_back(reindent_line(before, from_close));
+                block.push_back(reindent_line(before, from_close));
         }
+
+        auto nested = split_lines(format_subqueries_once(join_lines(block)));
+        if (!attach_tail.empty()) {
+            if (!nested.empty()) nested.back() += attach_tail;
+            else                 out.back()   += attach_tail;
+        }
+        for (auto& b : nested) out.push_back(b);
 
         i = close_line + 1;
     }
 
     return join_lines(out);
+}
+
+// Re-run the single pass until it stops changing so nested "(select ...)"
+// blocks (derived table inside a derived table) each get re-indented
+// relative to their own parent. Bounded so a pathological input can't spin.
+static std::string format_subqueries(const std::string& text) {
+    std::string cur = text;
+    for (int pass = 0; pass < 5; ++pass) {
+        std::string next = format_subqueries_once(cur);
+        if (next == cur) break;
+        cur = next;
+    }
+    return cur;
 }
 
 // ─── pass 8: window function formatting ──────────────────────────────────────

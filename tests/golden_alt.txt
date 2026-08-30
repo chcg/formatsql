@@ -623,3 +623,19 @@ SELECT a.id,,
 
  ORDER BY c DESC,
           a.id ASC;
+
+-- ─── 31. Nested derived tables (subquery inside a subquery) ────────────────
+-- Expected: each inner SELECT is re-indented relative to its own parent,
+-- not left at the outer subquery's indentation.
+
+SELECT x
+
+  FROM (SELECT y as x
+
+          FROM (SELECT z as y
+
+                  FROM t
+
+                 WHERE z > 0) inner_t
+
+         WHERE x < 100) outer_t;
