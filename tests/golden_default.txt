@@ -489,3 +489,14 @@ select id as x
   from orders as o
   join customers as c
     on c.id = o.customer_id
+
+-- ─── 28. BETWEEN ... AND stays on one line; NATURAL JOIN recognized ─────────
+-- Expected: the AND inside BETWEEN is not split off; NATURAL JOIN is treated
+-- as one keyword, not "natural" + "join".
+
+select a.id
+  from a
+natural join b
+ cross join c
+ where a.amount between 10 and 20
+   and a.status = 'ok'

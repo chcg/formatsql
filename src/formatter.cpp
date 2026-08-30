@@ -129,6 +129,7 @@ static const char* SQL_KEYWORDS[] = {
     "insert","into","values","update","set","delete","alter","drop","distinct",
     "exists","over","partition","rows","range","preceding","following","current",
     "row","asc","desc","nulls","first","last","lateral","flatten","using","top",
+    "natural",
     "recursive","materialized","temporary","temp","if","begin","commit","rollback",
     "primary","foreign","key","references","unique","index","constraint","default",
     nullptr
@@ -483,6 +484,9 @@ static std::string apply_op_spacing(const std::string& sql) {
 static std::string split_clauses(const std::string& sql) {
     struct Def { const char* kw; bool is_select; };
     static const Def SPLITS[] = {
+        {"natural left join",false},{"natural right join",false},
+        {"natural full join",false},{"natural inner join",false},
+        {"natural join",   false},
         {"left outer join",false},{"right outer join",false},
         {"full outer join",false},{"cross join",      false},
         {"inner join",     false},{"left join",       false},
@@ -523,6 +527,7 @@ static std::string split_clauses(const std::string& sql) {
     bool in_sel = false;
     std::vector<PT> paren_stack;
     bool just_opened_inline = false;  // suppress ensure_nl for first SELECT after '('
+    bool skip_next_and = false;       // the AND that belongs to BETWEEN ... AND
 
     auto ensure_nl = [&]() {
         if (just_opened_inline) { just_opened_inline = false; return; }
@@ -591,6 +596,18 @@ static std::string split_clauses(const std::string& sql) {
 
         // Clause keyword — at top level or inside subquery/CTE parens
         bool prev_word = i > 0 && (std::isalnum((unsigned char)sql[i-1]) || sql[i-1] == '_');
+
+        // "between" — pass through inline and remember that the next AND is
+        // part of the range, not a WHERE conjunction.
+        if (!prev_word && c == 'b' && i + 7 <= sql.size()
+            && sql.compare(i, 7, "between") == 0
+            && (i + 7 == sql.size() || word_boundary(sql[i+7]))) {
+            out.append(sql, i, 7);
+            i += 7;
+            skip_next_and = true;
+            continue;
+        }
+
         if (!prev_word && std::isalpha((unsigned char)c) && allow_split()) {
             bool kw_matched = false;
             for (const Def* d = SPLITS; d->kw; ++d) {
@@ -602,6 +619,13 @@ static std::string split_clauses(const std::string& sql) {
                 if (!match) continue;
                 char nx = (i+n < sql.size()) ? sql[i+n] : '\0';
                 if (!word_boundary(nx)) continue;
+                if (n == 3 && d->kw[0] == 'a' && d->kw[1] == 'n' && skip_next_and) {
+                    out.append(sql, i, n);   // BETWEEN's AND: keep inline
+                    i += n;
+                    skip_next_and = false;
+                    kw_matched = true;
+                    break;
+                }
                 ensure_nl();
                 out.append(sql.c_str() + i, n);
                 i += n;
@@ -623,6 +647,9 @@ struct KwInfo { size_t len; bool is_join; };
 static KwInfo match_clause(const std::string& sl) {
     struct Def { const char* kw; bool is_join; };
     static const Def DEFS[] = {
+        {"natural left join",true},{"natural right join",true},
+        {"natural full join",true},{"natural inner join",true},
+        {"natural join",   true},
         {"left outer join",true},{"right outer join",true},
         {"full outer join",true},{"cross join",      true},
         {"inner join",     true},{"left join",       true},

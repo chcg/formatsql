@@ -313,3 +313,10 @@ SELECT price*qty AS line_total, first_name||' '||last_name AS name, -1 AS neg, s
 -- get "as". SELECT *, t.*, and "x is null" are left alone.
 
 SELECT id x, sum(amount) total, upper(name) nm, CASE WHEN a=1 THEN 'y' ELSE 'n' END lbl FROM orders o JOIN customers AS c ON c.id = o.customer_id
+
+
+-- ─── 28. BETWEEN ... AND stays on one line; NATURAL JOIN recognized ─────────
+-- Expected: the AND inside BETWEEN is not split off; NATURAL JOIN is treated
+-- as one keyword, not "natural" + "join".
+
+SELECT a.id FROM a NATURAL JOIN b CROSS JOIN c WHERE a.amount BETWEEN 10 AND 20 AND a.status = 'ok'
