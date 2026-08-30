@@ -172,6 +172,70 @@ static std::string normalize(const std::string& sql) {
     return out;
 }
 
+// ─── pass 1b: tidy interior whitespace ──────────────────────────────────────
+// Runs on normalized (still single-ish) text before any alignment happens:
+//   - collapses runs of spaces/tabs to one space (leading indentation is
+//     dropped and rebuilt by the alignment passes; one blank line between
+//     statements is kept)
+//   - removes the space between a function name and its '('  (count (*) -> count(*))
+//   - guarantees one space after every comma                 (nullif(a,b) -> nullif(a, b))
+// Comments and quoted literals are copied verbatim.
+
+static std::string tidy_spacing(const std::string& sql) {
+    std::string out;
+    out.reserve(sql.size());
+    size_t i = 0;
+
+    // Tail of `out` is an identifier that is NOT a SQL keyword (i.e. a function
+    // name), so a following '(' should be glued to it.
+    auto tail_is_fn_name = [&]() -> bool {
+        size_t e = out.size();
+        if (e == 0 || !(std::isalnum((unsigned char)out[e-1]) || out[e-1] == '_')) return false;
+        size_t s = e;
+        while (s > 0 && (std::isalnum((unsigned char)out[s-1]) || out[s-1] == '_')) --s;
+        return !is_sql_keyword(out.c_str() + s, e - s);
+    };
+
+    while (i < sql.size()) {
+        if (copy_verbatim_run(sql, i, out)) continue;
+        char c = sql[i];
+
+        if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
+            int nls = 0;
+            while (i < sql.size() &&
+                   (sql[i] == ' ' || sql[i] == '\t' || sql[i] == '\n' || sql[i] == '\r')) {
+                if (sql[i] == '\n') ++nls;
+                ++i;
+            }
+            if (nls >= 2)      out += "\n\n";
+            else if (nls == 1) out += '\n';
+            else if (i < sql.size() && sql[i] == '(' && tail_is_fn_name()) {
+                /* drop the space: function call */
+            } else if (!out.empty() && out.back() != '\n') {
+                out += ' ';
+            }
+            continue;
+        }
+
+        if (c == ',') {
+            bool prev_digit = !out.empty() && std::isdigit((unsigned char)out.back());
+            out += ',';
+            ++i;
+            while (i < sql.size() && (sql[i] == ' ' || sql[i] == '\t')) ++i;
+            // Skip a decimal/grouping comma between digits (NL number 1.000,00).
+            bool next_digit = i < sql.size() && std::isdigit((unsigned char)sql[i]);
+            if (i < sql.size() && sql[i] != ')' && sql[i] != '\n' && sql[i] != '\r'
+                && !(prev_digit && next_digit))
+                out += ' ';
+            continue;
+        }
+
+        out += c;
+        ++i;
+    }
+    return out;
+}
+
 // ─── pass 2: CASE statement formatting ───────────────────────────────────────
 
 // Returns position after the "end" that closes the CASE starting at `pos`
@@ -1744,6 +1808,7 @@ std::string format_sql(const std::string& sql) {
 
     auto run_pipeline = [](const std::string& s) -> std::string {
         std::string t = normalize(s);
+        t = tidy_spacing(t);
         t = apply_op_spacing(t);
         t = split_clauses(t);
         t = postprocess(t);

@@ -291,3 +291,10 @@ SELECT o.order_id, c.name FROM orders o JOIN customers c ON c.customer_id = o.cu
 -- no keyword-splitting, no case conversion, no line breaks inside it.
 
 SELECT `Group`, `Order Date`, `from` FROM `my table` WHERE `where flag` = 1
+
+
+-- ─── 25. Whitespace tidy: multi-space runs, fn-name glue, comma spacing ──────
+-- Expected: runs of spaces collapsed to one, "count (" -> "count(",
+-- "a,b" -> "a, b", but the NL number 1.000,00 and decimal(10,2) stay intact.
+
+SELECT   count (*)   AS   n , sum( amount ) AS  total FROM   t   WHERE  a   =   1   AND  b IN (1,2,3) AND price > 1.000,00

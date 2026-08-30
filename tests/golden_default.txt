@@ -209,7 +209,7 @@ select o.order_id
          on ol.order_id = o.order_id
  where o.status = 'active'
    and o.order_date >= '2024-01-01'
- group by o.order_id,c.name,o.amount
+ group by o.order_id, c.name, o.amount
  order by o.order_id;
 
 -- ─── 13. INSERT: column list + VALUES ─────────────────────────────────────────
@@ -449,3 +449,14 @@ select `Group`
      , `from`
   from `my table`
  where `where flag` = 1
+
+-- ─── 25. Whitespace tidy: multi-space runs, fn-name glue, comma spacing ──────
+-- Expected: runs of spaces collapsed to one, "count (" -> "count(",
+-- "a,b" -> "a, b", but the NL number 1.000,00 and decimal(10,2) stay intact.
+
+select count(*) as n
+     , sum( amount ) as total
+  from t
+ where a = 1
+   and b in (1,2,3)
+   and price > 1.000,00

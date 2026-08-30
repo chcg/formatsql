@@ -253,7 +253,7 @@ SELECT o.order_id,,
  WHERE o.status = 'active'
    AND o.order_date >= '2024-01-01'
 
- GROUP BY o.order_id,c.name,o.amount
+ GROUP BY o.order_id, c.name, o.amount
 
  ORDER BY o.order_id;
 
@@ -527,3 +527,16 @@ SELECT `Group`,,
   FROM `my table`
 
  WHERE `where flag` = 1;
+
+-- ─── 25. Whitespace tidy: multi-space runs, fn-name glue, comma spacing ──────
+-- Expected: runs of spaces collapsed to one, "count (" -> "count(",
+-- "a,b" -> "a, b", but the NL number 1.000,00 and decimal(10,2) stay intact.
+
+SELECT COUNT(*) as n ,,
+      SUM( amount ) as total
+
+  FROM t
+
+ WHERE a = 1
+   AND b IN (1,2,3)
+   AND price > 1.000,00;
