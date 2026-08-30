@@ -217,8 +217,12 @@ DROP VIEW active_orders
 
 
 -- ─── 19. Window functions ─────────────────────────────────────────────────────
--- Expected: OVER (...) expanded with PARTITION BY / ORDER BY on their own lines,
--- closing ) on its own line, directly under the opening bracket
+-- Expected: no space after OVER (, PARTITION BY / ORDER BY / frame each on their
+-- own line aligned under the first token, and the closing ) attached to the end
+-- of the last line (no leading space) followed by AS <alias>:
+--
+--   , row_number() over (partition by customer_id
+--                        order by order_date desc) as rn
 
 SELECT customer_id, order_id, amount, ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC) AS rn, SUM(amount) OVER (PARTITION BY customer_id ORDER BY order_date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total, DENSE_RANK() OVER (ORDER BY amount DESC) AS rnk FROM orders
 

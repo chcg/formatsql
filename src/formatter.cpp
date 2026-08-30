@@ -1261,7 +1261,7 @@ static std::string format_window_fns(const std::string& text) {
         }
 
         int paren_col   = (int)paren_open;  // column of '('
-        int content_col = paren_col + 2;    // column of content after '( '
+        int content_col = paren_col + 1;    // column of content right after '(' (no space)
 
         std::string prefix = line.substr(0, over_pos);
         std::string suffix = after_close < line.size() ? line.substr(after_close) : "";
@@ -1269,7 +1269,7 @@ static std::string format_window_fns(const std::string& text) {
         // Partition BY section
         if (!part_str.empty()) {
             auto cols = split_comma_aware(part_str);
-            out.push_back(prefix + "over ( partition by " + ltrim(rtrim(cols[0])));
+            out.push_back(prefix + "over (partition by " + ltrim(rtrim(cols[0])));
             // Continuation cols: comma 2 chars left of first_part_col = content_col + 13 - 2
             std::string cont(content_col + 11, ' ');
             for (size_t ci = 1; ci < cols.size(); ++ci)
@@ -1280,7 +1280,7 @@ static std::string format_window_fns(const std::string& text) {
         if (!order_str.empty()) {
             auto cols = split_comma_aware(order_str);
             if (part_str.empty()) {
-                out.push_back(prefix + "over ( order by " + ltrim(rtrim(cols[0])));
+                out.push_back(prefix + "over (order by " + ltrim(rtrim(cols[0])));
             } else {
                 out.push_back(std::string(content_col, ' ') + "order by " + ltrim(rtrim(cols[0])));
             }
@@ -1294,8 +1294,10 @@ static std::string format_window_fns(const std::string& text) {
         if (!frame_str.empty())
             out.push_back(std::string(content_col, ' ') + frame_str);
 
-        // Closing ')'
-        out.push_back(std::string(paren_col, ' ') + ")" + suffix);
+        // Closing ')': attach to the end of the last line, no leading space,
+        // followed by whatever came after OVER(...) (" as rn" etc.).
+        out.back() += ")";
+        out.back() += suffix;
     }
 
     return join_lines(out);

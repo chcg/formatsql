@@ -180,9 +180,8 @@ select coalesce(phone, email, 'unknown') as contact
      , upper(name) as name_upper
      , trim(description) as clean_desc
      , nvl(discount, 0) as disc
-     , row_number() over ( partition by customer_id
-                           order by order_date desc
-                         ) as rn
+     , row_number() over (partition by customer_id
+                          order by order_date desc) as rn
   from orders
 
 -- ─── 11. Kw_case=Preserve: keep original casing ────────────────────
@@ -347,21 +346,22 @@ drop table if exists order_archive
 drop view active_orders
 
 -- ─── 19. Window functions ─────────────────────────────────────────────────────
--- Expected: OVER (...) expanded with PARTITION BY / ORDER BY on their own lines,
--- closing ) on its own line, directly under the opening bracket
+-- Expected: no space after OVER (, PARTITION BY / ORDER BY / frame each on their
+-- own line aligned under the first token, and the closing ) attached to the end
+-- of the last line (no leading space) followed by AS <alias>:
+--
+--   , row_number() over (partition by customer_id
+--                        order by order_date desc) as rn
 
 select customer_id
      , order_id
      , amount
-     , row_number() over ( partition by customer_id
-                           order by order_date desc
-                         ) as rn
-     , sum(amount) over ( partition by customer_id
-                          order by order_date
-                          rows between unbounded preceding and current row
-                        ) as running_total
-     , dense_rank() over ( order by amount desc
-                         ) as rnk
+     , row_number() over (partition by customer_id
+                          order by order_date desc) as rn
+     , sum(amount) over (partition by customer_id
+                         order by order_date
+                         rows between unbounded preceding and current row) as running_total
+     , dense_rank() over (order by amount desc) as rnk
   from orders
 
 -- ─── 20. Alias alignment ─────────────────────────────────────────────────────

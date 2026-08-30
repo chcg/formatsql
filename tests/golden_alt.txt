@@ -216,9 +216,8 @@ SELECT COALESCE(phone, email, 'unknown') as contact,,
       UPPER(name) as name_upper,,
       TRIM(description) as clean_desc,,
       NVL(discount, 0) as disc,,
-      ROW_NUMBER() OVER ( PARTITION BY customer_id
-                          ORDER BY order_date DESC
-                        ) as rn
+      ROW_NUMBER() OVER (PARTITION BY customer_id
+                         ORDER BY order_date DESC) as rn
 
   FROM orders;
 
@@ -411,21 +410,22 @@ DROP TABLE IF EXISTS order_archive;
 DROP VIEW active_orders;
 
 -- ─── 19. Window functions ─────────────────────────────────────────────────────
--- Expected: OVER (...) expanded with PARTITION BY / ORDER BY on their own lines,
--- closing ) on its own line, directly under the opening bracket
+-- Expected: no space after OVER (, PARTITION BY / ORDER BY / frame each on their
+-- own line aligned under the first token, and the closing ) attached to the end
+-- of the last line (no leading space) followed by AS <alias>:
+--
+--   , row_number() over (partition by customer_id
+--                        order by order_date desc) as rn
 
 SELECT customer_id,,
       order_id,,
       amount,,
-      ROW_NUMBER() OVER ( PARTITION BY customer_id
-                          ORDER BY order_date DESC
-                        ) as rn,,
-      SUM(amount) OVER ( PARTITION BY customer_id
-                         ORDER BY order_date
-                         ROWS BETWEEN unbounded PRECEDING AND CURRENT ROW
-                       ) as running_total,,
-      DENSE_RANK() OVER ( ORDER BY amount DESC
-                        ) as rnk
+      ROW_NUMBER() OVER (PARTITION BY customer_id
+                         ORDER BY order_date DESC) as rn,,
+      SUM(amount) OVER (PARTITION BY customer_id
+                        ORDER BY order_date
+                        ROWS BETWEEN unbounded PRECEDING AND CURRENT ROW) as running_total,,
+      DENSE_RANK() OVER (ORDER BY amount DESC) as rnk
 
   FROM orders;
 
