@@ -320,3 +320,10 @@ SELECT id x, sum(amount) total, upper(name) nm, CASE WHEN a=1 THEN 'y' ELSE 'n' 
 -- as one keyword, not "natural" + "join".
 
 SELECT a.id FROM a NATURAL JOIN b CROSS JOIN c WHERE a.amount BETWEEN 10 AND 20 AND a.status = 'ok'
+
+
+-- ─── 29. JOIN ... USING on its own line; SELECT DISTINCT ON (...) kept whole ──
+-- Expected: USING (...) breaks onto its own line aligned like ON; the
+-- "distinct on (...)" qualifier stays on the SELECT line, its "on" not split.
+
+SELECT DISTINCT ON (a.customer_id) a.customer_id, a.total FROM a JOIN b USING (customer_id) JOIN c USING (region, year)

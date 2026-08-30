@@ -499,6 +499,7 @@ static std::string split_clauses(const std::string& sql) {
         {"intersect",      false},{"except",          false},
         {"select",         true },
         {"on",             false},
+        {"using",          false},
         {"and",            false},
         {"or",             false},
         {"insert",         false},
@@ -597,6 +598,37 @@ static std::string split_clauses(const std::string& sql) {
         // Clause keyword — at top level or inside subquery/CTE parens
         bool prev_word = i > 0 && (std::isalnum((unsigned char)sql[i-1]) || sql[i-1] == '_');
 
+        // "select distinct on (...)" — keep the whole DISTINCT ON (...) qualifier
+        // on the SELECT line so its "on" is not split off as a JOIN clause.
+        if (!prev_word && c == 's' && allow_split()
+            && sql.compare(i, 6, "select") == 0
+            && (i + 6 >= sql.size() || word_boundary(sql[i+6]))) {
+            size_t k = i + 6;
+            while (k < sql.size() && sql[k] == ' ') ++k;
+            if (sql.compare(k, 8, "distinct") == 0
+                && k + 8 < sql.size() && word_boundary(sql[k+8])) {
+                size_t m = k + 8;
+                while (m < sql.size() && sql[m] == ' ') ++m;
+                if (sql.compare(m, 2, "on") == 0 && m + 2 < sql.size()
+                    && (sql[m+2] == ' ' || sql[m+2] == '(')) {
+                    size_t p = m + 2;
+                    while (p < sql.size() && sql[p] == ' ') ++p;
+                    if (p < sql.size() && sql[p] == '(') {
+                        int d = 0; size_t q = p;
+                        for (; q < sql.size(); ++q) {
+                            if (sql[q] == '(') ++d;
+                            else if (sql[q] == ')') { if (--d == 0) { ++q; break; } }
+                        }
+                        ensure_nl();
+                        out.append(sql, i, q - i);   // "select distinct on (...)"
+                        i = q;
+                        in_sel = true;
+                        continue;
+                    }
+                }
+            }
+        }
+
         // "between" — pass through inline and remember that the next AND is
         // part of the range, not a WHERE conjunction.
         if (!prev_word && c == 'b' && i + 7 <= sql.size()
@@ -677,7 +709,8 @@ static KwInfo match_clause(const std::string& sl) {
 }
 
 static bool is_on_and(const std::string& sl) {
-    return starts_word(sl, "on") || starts_word(sl, "and") || starts_word(sl, "or");
+    return starts_word(sl, "on") || starts_word(sl, "and") || starts_word(sl, "or")
+        || starts_word(sl, "using");
 }
 
 static bool is_select_kw(const std::string& sl) { return starts_word(sl, "select"); }
@@ -856,7 +889,31 @@ static std::string postprocess(const std::string& text) {
                 ++i;
             }
             col1 = rtrim(col1);
+            // Peel off a leading DISTINCT ON (...) / DISTINCT / ALL quantifier so
+            // process_alias sees only the first real column expression.
+            std::string qual;
+            {
+                std::string ql = to_lower(col1);
+                if (ql.rfind("distinct on", 0) == 0) {
+                    size_t p = 11;
+                    while (p < col1.size() && col1[p] == ' ') ++p;
+                    if (p < col1.size() && col1[p] == '(') {
+                        int d = 0; size_t q = p;
+                        for (; q < col1.size(); ++q) {
+                            if (col1[q] == '(') ++d;
+                            else if (col1[q] == ')') { if (--d == 0) { ++q; break; } }
+                        }
+                        qual = rtrim(col1.substr(0, q));
+                        col1 = ltrim(col1.substr(q));
+                    }
+                } else if (starts_word(ql, "distinct")) {
+                    qual = col1.substr(0, 8); col1 = ltrim(col1.substr(8));
+                } else if (starts_word(ql, "all")) {
+                    qual = col1.substr(0, 3); col1 = ltrim(col1.substr(3));
+                }
+            }
             col1 = process_alias(col1);
+            if (!qual.empty()) col1 = col1.empty() ? qual : qual + " " + col1;
             out.push_back(std::string(base, ' ') + "select " + col1);
 
             if (g_settings.split_cols) {

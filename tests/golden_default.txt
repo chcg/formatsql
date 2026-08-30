@@ -500,3 +500,15 @@ natural join b
  cross join c
  where a.amount between 10 and 20
    and a.status = 'ok'
+
+-- ─── 29. JOIN ... USING on its own line; SELECT DISTINCT ON (...) kept whole ──
+-- Expected: USING (...) breaks onto its own line aligned like ON; the
+-- "distinct on (...)" qualifier stays on the SELECT line, its "on" not split.
+
+select distinct on (a.customer_id) a.customer_id
+     , a.total
+  from a
+  join b
+ using (customer_id)
+  join c
+ using (region, year)
