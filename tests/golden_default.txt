@@ -460,3 +460,16 @@ select count(*) as n
  where a = 1
    and b in (1,2,3)
    and price > 1.000,00
+
+-- ─── 26. Arithmetic and concat operator spacing ────────────────────────────
+-- Expected (spc_operators=Add): binary * / + - % and || get spaces, but
+-- SELECT *, t.*, count(*), unary -1, and Postgres -> / ->> are left alone.
+
+select price * qty as line_total
+     , first_name || ' ' || last_name as name
+     , -1 as neg
+     , sum(x) * 2 as dbl
+     , data->>'k' as j
+  from t
+ where amount * rate > 100
+   and x > -1

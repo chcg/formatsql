@@ -396,12 +396,23 @@ static std::string apply_op_spacing(const std::string& sql) {
     while (i < sql.size()) {
         char c = sql[i];
         if (copy_verbatim_run(sql, i, out)) continue;
+        // Pass '->' and '->>' (Postgres JSON) through untouched so neither the
+        // comparison loop nor the arithmetic block below can split them.
+        if (c == '-' && i + 1 < sql.size() && sql[i+1] == '>') {
+            out += "->"; i += 2;
+            if (i < sql.size() && sql[i] == '>') { out += '>'; ++i; }
+            continue;
+        }
+
         const Op* found = nullptr;
         for (const Op* op = OPS; op->s; ++op) {
             if ((int)sql.size() - (int)i >= op->n && sql.compare(i, op->n, op->s) == 0) {
-                // Don't match -> or :=
-                if (op->s[0] == '>' && i > 0 && sql[i-1] == '-') break;
-                if (op->s[0] == '>' && i > 0 && sql[i-1] == ':') break;
+                // Single-char <, >, = that is really part of a compound operator
+                // we don't format (>>, <<, @>, <@, #>, =>, := ...): leave it alone.
+                static const char* PREV_BLOCK = "-<>@#|&~:=";
+                static const char* NEXT_BLOCK = "<>@#|&~";
+                if (op->n == 1 && i > 0 && strchr(PREV_BLOCK, sql[i-1])) break;
+                if (op->n == 1 && i + 1 < sql.size() && strchr(NEXT_BLOCK, sql[i+1])) break;
                 found = op; break;
             }
         }
@@ -418,6 +429,49 @@ static std::string apply_op_spacing(const std::string& sql) {
                 while (i < sql.size() && sql[i] == ' ') ++i;
             }
             continue;
+        }
+
+        // Arithmetic / concat operators: || + - * / %
+        // Add mode only (Remove could turn "1 - -1" into the comment "1--1").
+        // Only spaced when clearly binary: an operand ends on the left and
+        // starts on the right. '*' after SELECT/DISTINCT and '->' are skipped.
+        if (opt == SpacesOpt::Add && (c=='|'||c=='+'||c=='-'||c=='*'||c=='/'||c=='%')) {
+            int oplen = (c == '|' && i+1 < sql.size() && sql[i+1] == '|') ? 2
+                      : (c == '|') ? 0 : 1;
+            if (oplen) {
+                auto op_end   = [](char x){ return std::isalnum((unsigned char)x) || x=='_' ||
+                                                   x==')' || x=='\'' || x=='"' || x=='`'; };
+                auto op_start = [](char x){ return std::isalnum((unsigned char)x) || x=='_' ||
+                                                   x=='(' || x=='\'' || x=='"' || x=='`' ||
+                                                   x=='+' || x=='-'; };
+                char prevc = 0;
+                for (size_t k = out.size(); k-- > 0; ) { if (out[k] != ' ') { prevc = out[k]; break; } }
+                size_t na = i + oplen;
+                while (na < sql.size() && sql[na] == ' ') ++na;
+                char nextc = na < sql.size() ? sql[na] : 0;
+
+                // Preceding word in `out` (for the keyword check below).
+                size_t we = out.size();
+                while (we > 0 && out[we-1] == ' ') --we;
+                size_t ws = we;
+                while (ws > 0 && (std::isalnum((unsigned char)out[ws-1]) || out[ws-1]=='_')) --ws;
+                bool prev_is_kw = ws < we && is_sql_keyword(out.c_str() + ws, we - ws);
+
+                bool binary;
+                if (oplen == 2) {                       // ||  — always binary
+                    binary = prevc && nextc;
+                } else {
+                    // "-1"/"+1" right after a keyword (select -1, then -1, …) is unary.
+                    binary = op_end(prevc) && op_start(nextc) && !prev_is_kw;
+                }
+                if (binary) {
+                    if (!out.empty() && out.back() != ' ' && out.back() != '\n') out += ' ';
+                    out.append(sql, i, oplen);
+                    i += oplen;
+                    if (i < sql.size() && sql[i] != ' ' && sql[i] != '\n') out += ' ';
+                    continue;
+                }
+            }
         }
         out += c; ++i;
     }

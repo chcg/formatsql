@@ -298,3 +298,10 @@ SELECT `Group`, `Order Date`, `from` FROM `my table` WHERE `where flag` = 1
 -- "a,b" -> "a, b", but the NL number 1.000,00 and decimal(10,2) stay intact.
 
 SELECT   count (*)   AS   n , sum( amount ) AS  total FROM   t   WHERE  a   =   1   AND  b IN (1,2,3) AND price > 1.000,00
+
+
+-- ─── 26. Arithmetic and concat operator spacing ────────────────────────────
+-- Expected (spc_operators=Add): binary * / + - % and || get spaces, but
+-- SELECT *, t.*, count(*), unary -1, and Postgres -> / ->> are left alone.
+
+SELECT price*qty AS line_total, first_name||' '||last_name AS name, -1 AS neg, sum(x)*2 AS dbl, data->>'k' AS j FROM t WHERE amount*rate > 100 AND x>-1
