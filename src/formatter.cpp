@@ -1147,8 +1147,36 @@ static std::string postprocess(const std::string& text) {
         if (ki.len > 0) {
             std::string kw, rest;
             split_kw(s, ki.len, kw, rest);
-            if (kw == "from") rest = normalize_table_ref(rest);
             std::string pd = g_settings.align_keywords ? pad_kw(kw) : "";
+
+            // Multi-item FROM list / GROUP BY / ORDER BY: one item per line,
+            // comma-first, aligned under the first item.
+            bool listy = (kw == "from" || kw == "group by" || kw == "order by")
+                         && g_settings.split_cols;
+            std::vector<std::string> items = listy ? split_comma_aware(rest)
+                                                   : std::vector<std::string>{};
+            if (listy && items.size() > 1) {
+                auto clean = [&](const std::string& x) {
+                    std::string v = ltrim(rtrim(x));
+                    return kw == "from" ? normalize_table_ref(v) : v;
+                };
+                bool comma_after = (g_settings.comma_pos == CommaPos::After);
+                int item_col = base + (int)pd.size() + (int)kw.size() + 1;
+                out.push_back(std::string(base, ' ') + pd + kw + " " + clean(items[0]));
+                for (size_t it = 1; it < items.size(); ++it) {
+                    if (comma_after) {
+                        out.back() += ',';
+                        out.push_back(std::string(item_col, ' ') + clean(items[it]));
+                    } else {
+                        out.push_back(std::string(item_col >= 2 ? item_col - 2 : 0, ' ')
+                                      + ", " + clean(items[it]));
+                    }
+                }
+                join_end = -1;
+                ++i; continue;
+            }
+
+            if (kw == "from") rest = normalize_table_ref(rest);
             out.push_back(std::string(base, ' ') + pd + kw
                           + (rest.empty() ? "" : " " + rest));
             join_end = -1;

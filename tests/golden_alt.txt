@@ -253,7 +253,9 @@ SELECT o.order_id,,
  WHERE o.status = 'active'
    AND o.order_date >= '2024-01-01'
 
- GROUP BY o.order_id, c.name, o.amount
+ GROUP BY o.order_id,
+          c.name,
+          o.amount
 
  ORDER BY o.order_id;
 
@@ -602,3 +604,22 @@ SELECT DISTINCT ON (a.customer_id) a.customer_id,,
 
   JOIN c
  USING (region, year);
+
+-- ─── 30. Multi-item FROM list / GROUP BY / ORDER BY split comma-first ───────
+-- Expected: comma-style FROM tables, and multi-key GROUP BY / ORDER BY, each
+-- get one item per line aligned under the first, like the SELECT list.
+
+SELECT a.id,,
+      b.name,,
+      COUNT(*) as c
+
+  FROM orders as a,
+       customers as b
+
+ WHERE a.cust_id = b.id
+
+ GROUP BY a.id,
+          b.name
+
+ ORDER BY c DESC,
+          a.id ASC;

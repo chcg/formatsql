@@ -327,3 +327,10 @@ SELECT a.id FROM a NATURAL JOIN b CROSS JOIN c WHERE a.amount BETWEEN 10 AND 20 
 -- "distinct on (...)" qualifier stays on the SELECT line, its "on" not split.
 
 SELECT DISTINCT ON (a.customer_id) a.customer_id, a.total FROM a JOIN b USING (customer_id) JOIN c USING (region, year)
+
+
+-- ─── 30. Multi-item FROM list / GROUP BY / ORDER BY split comma-first ───────
+-- Expected: comma-style FROM tables, and multi-key GROUP BY / ORDER BY, each
+-- get one item per line aligned under the first, like the SELECT list.
+
+SELECT a.id, b.name, count(*) c FROM orders a, customers b WHERE a.cust_id = b.id GROUP BY a.id, b.name ORDER BY c DESC, a.id ASC

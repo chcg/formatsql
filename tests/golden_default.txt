@@ -209,7 +209,9 @@ select o.order_id
          on ol.order_id = o.order_id
  where o.status = 'active'
    and o.order_date >= '2024-01-01'
- group by o.order_id, c.name, o.amount
+ group by o.order_id
+        , c.name
+        , o.amount
  order by o.order_id;
 
 -- ─── 13. INSERT: column list + VALUES ─────────────────────────────────────────
@@ -512,3 +514,18 @@ select distinct on (a.customer_id) a.customer_id
  using (customer_id)
   join c
  using (region, year)
+
+-- ─── 30. Multi-item FROM list / GROUP BY / ORDER BY split comma-first ───────
+-- Expected: comma-style FROM tables, and multi-key GROUP BY / ORDER BY, each
+-- get one item per line aligned under the first, like the SELECT list.
+
+select a.id
+     , b.name
+     , count(*) as c
+  from orders as a
+     , customers as b
+ where a.cust_id = b.id
+ group by a.id
+        , b.name
+ order by c desc
+        , a.id asc
