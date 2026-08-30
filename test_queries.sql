@@ -305,3 +305,11 @@ SELECT   count (*)   AS   n , sum( amount ) AS  total FROM   t   WHERE  a   =   
 -- SELECT *, t.*, count(*), unary -1, and Postgres -> / ->> are left alone.
 
 SELECT price*qty AS line_total, first_name||' '||last_name AS name, -1 AS neg, sum(x)*2 AS dbl, data->>'k' AS j FROM t WHERE amount*rate > 100 AND x>-1
+
+
+-- ─── 27. Alias normalization: implicit column alias + table alias ───────────
+-- Expected (alias_op=Add): "sum(x) total" -> "sum(x) as total", "id x" ->
+-- "id as x", "end lbl" -> "end as lbl"; table refs "orders o" / "customers c"
+-- get "as". SELECT *, t.*, and "x is null" are left alone.
+
+SELECT id x, sum(amount) total, upper(name) nm, CASE WHEN a=1 THEN 'y' ELSE 'n' END lbl FROM orders o JOIN customers AS c ON c.id = o.customer_id

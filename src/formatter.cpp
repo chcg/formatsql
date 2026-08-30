@@ -277,7 +277,7 @@ static std::string collapse_ws(const std::string& s) {
 // the WHEN position (case_col + 5), END back at case_col.
 static std::string expand_case(const std::string& block, int case_col) {
     std::string out;
-    std::string base_pad(case_col + 1, ' ');   // end indented 1 past "case" column
+    std::string base_pad(case_col, ' ');       // "end" aligns under "case"
     std::string when_pad(case_col + 5, ' ');  // aligns under "when" after "case "
     size_t i = 0;
     bool first_when = true;
@@ -699,8 +699,83 @@ static std::string process_alias(const std::string& col) {
         std::string as_kw = (ac == AliasCase::Upper) ? "AS" : "as";
         return expr + " " + as_kw + " " + alias;
     }
-    // No explicit AS found
+
+    // No explicit AS. In Add mode, promote an implicit trailing alias
+    // ("sum(x) total" -> "sum(x) as total", "id x" -> "id as x").
+    if (op == AliasOp::Add && col.find("--") == std::string::npos
+        && col.find("/*") == std::string::npos) {
+        std::string t = rtrim(col);
+        size_t e = t.size(), b = e;
+        while (b > 0 && t[b-1] != ' ' && t[b-1] != '\t') --b;
+        std::string alias = t.substr(b);
+        std::string expr  = rtrim(t.substr(0, b));
+
+        bool alias_ident = !alias.empty() &&
+            (std::isalpha((unsigned char)alias[0]) || alias[0] == '_');
+        for (char ch : alias)
+            if (!(std::isalnum((unsigned char)ch) || ch == '_')) alias_ident = false;
+
+        // Last whitespace-separated token of expr (to reject "a or b", "x is null").
+        size_t xe = expr.size(), xb = xe;
+        while (xb > 0 && expr[xb-1] != ' ' && expr[xb-1] != '\t') --xb;
+        std::string last_tok = to_lower(expr.substr(xb));
+        char lastc = expr.empty() ? 0 : expr.back();
+        bool expr_complete = std::isalnum((unsigned char)lastc) || lastc == '_' ||
+                             lastc == ')' || lastc == '\'' || lastc == '"' || lastc == '`';
+        std::string el = to_lower(expr);
+        bool expr_ok = !expr.empty() && el != "distinct" && el != "all" && expr_complete &&
+                       (last_tok == "end" || !is_sql_keyword(last_tok.c_str(), last_tok.size()));
+
+        if (alias_ident && expr_ok &&
+            !is_sql_keyword(alias.c_str(), alias.size())) {
+            std::string as_kw = (ac == AliasCase::Upper) ? "AS" : "as";
+            return expr + " " + as_kw + " " + alias;
+        }
+    }
     return col;
+}
+
+// Normalize the alias on a plain "<name> [as] <alias>" table reference to match
+// alias_op. Conservative: only touches the exact 2- or 3-token shape, leaving
+// anything with commas, extra keywords, parens or subqueries alone.
+static std::string normalize_table_ref(const std::string& ref) {
+    AliasOp op = g_settings.alias_op;
+    if (op == AliasOp::LeaveAsIs) return ref;
+
+    std::string r = rtrim(ltrim(ref));
+    std::vector<std::string> tok;
+    { std::string cur;
+      for (char c : r) {
+          if (c == ' ' || c == '\t') { if (!cur.empty()) { tok.push_back(cur); cur.clear(); } }
+          else cur += c;
+      }
+      if (!cur.empty()) tok.push_back(cur);
+    }
+
+    auto is_name  = [](const std::string& s) {
+        if (s.empty()) return false;
+        for (char c : s) if (!(std::isalnum((unsigned char)c) || c == '_' || c == '.')) return false;
+        return !std::isdigit((unsigned char)s[0]);
+    };
+    auto is_alias = [](const std::string& s) {
+        if (s.empty() || !(std::isalpha((unsigned char)s[0]) || s[0] == '_')) return false;
+        for (char c : s) if (!(std::isalnum((unsigned char)c) || c == '_')) return false;
+        return !is_sql_keyword(s.c_str(), s.size());
+    };
+    std::string as_kw = (g_settings.alias_case == AliasCase::Upper) ? "AS" : "as";
+
+    if (tok.size() == 2 && is_name(tok[0]) && !is_sql_keyword(tok[0].c_str(), tok[0].size())
+        && is_alias(tok[1])) {
+        return op == AliasOp::Remove ? tok[0] + " " + tok[1]
+                                     : tok[0] + " " + as_kw + " " + tok[1];
+    }
+    if (tok.size() == 3 && to_lower(tok[1]) == "as"
+        && is_name(tok[0]) && !is_sql_keyword(tok[0].c_str(), tok[0].size())
+        && is_alias(tok[2])) {
+        return op == AliasOp::Remove ? tok[0] + " " + tok[2]
+                                     : tok[0] + " " + as_kw + " " + tok[2];
+    }
+    return ref;
 }
 
 // Split s by ',' at paren/string depth 0
@@ -967,6 +1042,7 @@ static std::string postprocess(const std::string& text) {
             }
             std::string prefix = std::string(base, ' ') + pad_kw(kw) + kw;
             join_end = (int)prefix.size();
+            rest = normalize_table_ref(rest);
             out.push_back(prefix + (rest.empty() ? "" : " " + rest));
             ++i; continue;
         }
@@ -987,6 +1063,7 @@ static std::string postprocess(const std::string& text) {
         if (ki.len > 0) {
             std::string kw, rest;
             split_kw(s, ki.len, kw, rest);
+            if (kw == "from") rest = normalize_table_ref(rest);
             std::string pd = g_settings.align_keywords ? pad_kw(kw) : "";
             out.push_back(std::string(base, ' ') + pd + kw
                           + (rest.empty() ? "" : " " + rest));
@@ -1230,11 +1307,13 @@ static std::string format_subqueries(const std::string& text) {
 
             if (!content.empty() && content[0] == ',') {
                 std::string col = (content.size()>2 && content[1]==' ') ? content.substr(2) : content.substr(1);
+                col = process_alias(rtrim(col));
                 return std::string(subq_col + KW - 1, ' ') + ", " + col + suffix;
             }
             KwInfo ki = match_clause(cl);
             if (ki.len > 0) {
                 std::string kw, rest; split_kw(content, ki.len, kw, rest);
+                if (kw == "from" || ki.is_join) rest = normalize_table_ref(rest);
                 std::string pd = g_settings.align_keywords ? pad_kw(kw) : "";
                 return std::string(subq_col, ' ') + pd + kw + (rest.empty() ? "" : " " + rest) + suffix;
             }

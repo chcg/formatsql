@@ -46,13 +46,13 @@ select count(order_id)
 select o.order_id
      , c.name
      , p.product_name
-  from orders o
-  join customers c
+  from orders as o
+  join customers as c
     on c.customer_id = o.customer_id
    and c.active = 1
-  left join order_lines ol
+  left join order_lines as ol
          on ol.order_id = o.order_id
-  left join products p
+  left join products as p
          on p.product_id = ol.product_id
  where o.status = 'active'
 
@@ -64,7 +64,7 @@ select o.order_id
 
 select count(order_id) as order_count
      , sum(amount) as total_amount
-     , customer_name cust_name
+     , customer_name as cust_name
      , order_date
   from orders
 
@@ -79,13 +79,13 @@ select order_id
             when status = 'pending'
             then 'Processing'
             else 'Unknown'
-        end as status_label
+       end as status_label
      , case when amount > 1000
             then 'Large'
             when amount > 100
             then 'Medium'
             else 'Small'
-        end as size
+       end as size
   from orders
 
 -- ─── 5. Semicolons: semi_pos ─────────────────────────────────────────────────
@@ -121,12 +121,12 @@ select *
 
 select a.id
      , a.name
-  from table_a a
+  from table_a as a
  where a.active = 1
 
 select b.id
      , b.description
-  from table_b b
+  from table_b as b
  where b.status = 'active'
 
 -- ─── 8. Subquery in FROM clause ────────────────────────────────────────────
@@ -166,8 +166,8 @@ having sum(amount) > 1000
 )
 select c.name
      , o.total
-  from active_customers c
-  join large_orders o
+  from active_customers as c
+  join large_orders as o
     on o.customer_id = c.customer_id
 
 -- ─── 10. Function casing: fn_case ──────────────────────────────────────────────
@@ -200,12 +200,12 @@ select o.order_id
      , case when o.amount > 1000
             then 'LARGE'
             else 'SMALL'
-        end as size
+       end as size
      , count(ol.line_id) as lines
-  from orders o
-  join customers c
+  from orders as o
+  join customers as c
     on c.customer_id = o.customer_id
-  left join order_lines ol
+  left join order_lines as ol
          on ol.order_id = o.order_id
  where o.status = 'active'
    and o.order_date >= '2024-01-01'
@@ -413,7 +413,7 @@ select order_id
             when status = 'pending'
             then 'Processing'
             else 'Unknown'
-        end as label
+       end as label
   from orders
 
 -- ─── 23. Jinja/dbt support ──────────────────────────────────────────────────
@@ -435,8 +435,8 @@ select order_id
 
 select o.order_id
      , c.name
-  from orders o
-  join customers c
+  from orders as o
+  join customers as c
     on c.customer_id = o.customer_id
 
 -- ─── 24. Backtick-quoted identifiers (MySQL/Databricks) ─────────────────────
@@ -473,3 +473,19 @@ select price * qty as line_total
   from t
  where amount * rate > 100
    and x > -1
+
+-- ─── 27. Alias normalization: implicit column alias + table alias ───────────
+-- Expected (alias_op=Add): "sum(x) total" -> "sum(x) as total", "id x" ->
+-- "id as x", "end lbl" -> "end as lbl"; table refs "orders o" / "customers c"
+-- get "as". SELECT *, t.*, and "x is null" are left alone.
+
+select id as x
+     , sum(amount) as total
+     , upper(name) as nm
+     , case when a = 1
+            then 'y'
+            else 'n'
+       end as lbl
+  from orders as o
+  join customers as c
+    on c.id = o.customer_id

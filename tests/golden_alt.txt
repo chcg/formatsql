@@ -53,16 +53,16 @@ SELECT o.order_id,,
       c.name,,
       p.product_name
 
-  FROM orders o
+  FROM orders as o
 
- INNER JOIN customers c
+ INNER JOIN customers as c
          ON c.customer_id = o.customer_id
         AND c.active = 1
 
-  LEFT OUTER JOIN order_lines ol
+  LEFT OUTER JOIN order_lines as ol
                ON ol.order_id = o.order_id
 
-  LEFT OUTER JOIN products p
+  LEFT OUTER JOIN products as p
                ON p.product_id = ol.product_id
 
  WHERE o.status = 'active';
@@ -89,11 +89,11 @@ SELECT order_id,,
       CASE WHEN status = 'active' THEN 'Active'
            WHEN status = 'pending' THEN 'Processing'
            ELSE                         'Unknown'
-       END as status_label,,
+      END as status_label,,
       CASE WHEN amount > 1000 THEN 'Large'
            WHEN amount > 100  THEN 'Medium'
            ELSE                    'Small'
-       END as size
+      END as size
 
   FROM orders;
 
@@ -136,14 +136,14 @@ SELECT *
 SELECT a.id,,
       a.name
 
-  FROM table_a a
+  FROM table_a as a
 
  WHERE a.active = 1;
 
 SELECT b.id,,
       b.description
 
-  FROM table_b b
+  FROM table_b as b
 
  WHERE b.status = 'active';
 
@@ -201,9 +201,9 @@ HAVING SUM(amount) > 1000
 SELECT c.name,,
       o.total
 
-  FROM active_customers c
+  FROM active_customers as c
 
-  JOIN large_orders o
+  JOIN large_orders as o
     ON o.customer_id = c.customer_id;
 
 -- ─── 10. Function casing: fn_case ──────────────────────────────────────────────
@@ -239,15 +239,15 @@ SELECT o.order_id,,
       c.name as cust,,
       CASE WHEN o.amount > 1000 THEN 'LARGE'
            ELSE                      'SMALL'
-       END as size,,
+      END as size,,
       COUNT(ol.line_id) as lines
 
-  FROM orders o
+  FROM orders as o
 
- INNER JOIN customers c
+ INNER JOIN customers as c
          ON c.customer_id = o.customer_id
 
-  LEFT OUTER JOIN order_lines ol
+  LEFT OUTER JOIN order_lines as ol
                ON ol.order_id = o.order_id
 
  WHERE o.status = 'active'
@@ -484,7 +484,7 @@ SELECT order_id,,
       CASE WHEN status = 'active' THEN 'Active'
            WHEN status = 'pending' THEN 'Processing'
            ELSE                         'Unknown'
-       END as label
+      END as label
 
   FROM orders
 
@@ -510,9 +510,9 @@ SELECT order_id,,
 SELECT o.order_id,,
       c.name
 
-  FROM orders o
+  FROM orders as o
 
-  JOIN customers c
+  JOIN customers as c
     ON c.customer_id = o.customer_id;
 
 -- ─── 24. Backtick-quoted identifiers (MySQL/Databricks) ─────────────────────
@@ -555,3 +555,20 @@ SELECT price * qty as line_total,,
 
  WHERE amount * rate > 100
    AND x > -1;
+
+-- ─── 27. Alias normalization: implicit column alias + table alias ───────────
+-- Expected (alias_op=Add): "sum(x) total" -> "sum(x) as total", "id x" ->
+-- "id as x", "end lbl" -> "end as lbl"; table refs "orders o" / "customers c"
+-- get "as". SELECT *, t.*, and "x is null" are left alone.
+
+SELECT id x,,
+      SUM(amount) total,,
+      UPPER(name) nm,,
+      CASE WHEN a = 1 THEN 'y'
+           ELSE 'n'
+      END as lbl
+
+  FROM orders as o
+
+  JOIN customers as c
+    ON c.id = o.customer_id;
