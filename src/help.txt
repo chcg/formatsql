@@ -215,5 +215,6 @@ REQUIREMENTS
 64-bit Notepad++ only. 32-bit is not supported.
 
 
-More information, updates, and bug reports: see the project repository at
+Plugin page (usage tips, screenshots): https://datamodder.com/utils/sql-formatter
+Updates and bug reports: see the project repository at
 https://github.com/dm-utils/formatsql

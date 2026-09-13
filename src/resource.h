@@ -107,3 +107,4 @@
 // ─── about dialog ─────────────────────────────────────────────────────────────
 #define IDC_ABOUT_LINK      1301
 #define IDC_ABOUT_BODY      1302
+#define IDC_ABOUT_LINK_WEBSITE 1303
