@@ -1,7 +1,7 @@
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- FormatSQL test fixture: nested / combined CASE expressions
 -- Usage: open in Notepad++, press Format SQL (Ctrl+Alt+F) per section and inspect.
--- test_queries.sql only has flat CASE WHEN...THEN...ELSE END (#4, #22). This
+-- basic_test_queries.sql only has flat CASE WHEN...THEN...ELSE END (#4, #22). This
 -- file adds: CASE nested inside a WHEN/THEN/ELSE branch, CASE inside an
 -- aggregate, simple CASE (CASE expr WHEN val THEN...) vs searched CASE, CASE
 -- in ORDER BY, CASE in WHERE, a subquery inside a WHEN condition, and three

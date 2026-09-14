@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════════════════
--- FormatSQL test fixture: JOINs not covered by test_queries.sql
+-- FormatSQL test fixture: JOINs not covered by basic_test_queries.sql
 -- Usage: open in Notepad++, press Format SQL (Ctrl+Alt+F) per section and inspect.
 -- Gaps this fills: RIGHT/FULL OUTER JOIN, self-join, multi-condition ON with OR,
 -- join to a derived table, join to a CTE, semi/anti-join via EXISTS, LATERAL /

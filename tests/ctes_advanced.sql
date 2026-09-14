@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════════════════
--- FormatSQL test fixture: CTEs (WITH clauses) not covered by test_queries.sql
+-- FormatSQL test fixture: CTEs (WITH clauses) not covered by basic_test_queries.sql
 -- Usage: open in Notepad++, press Format SQL (Ctrl+Alt+F) per section and inspect.
 -- Gaps this fills: WITH RECURSIVE, CTE with an explicit column list, chained
 -- CTEs (each depending on the previous), a CTE referenced twice (self-join on

@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════════════════
--- FormatSQL test fixture: subqueries not covered by test_queries.sql
+-- FormatSQL test fixture: subqueries not covered by basic_test_queries.sql
 -- Usage: open in Notepad++, press Format SQL (Ctrl+Alt+F) per section and inspect.
 -- Gaps this fills: scalar subquery in the SELECT list, correlated subquery in
 -- WHERE, subquery inside a JOIN's ON, ANY/ALL/SOME comparisons, EXISTS/NOT
@@ -55,7 +55,7 @@ SELECT customer_id, SUM(amount) AS total FROM orders GROUP BY customer_id HAVING
 
 -- ─── 8. Subquery nested inside a subquery, inside a JOIN ───────────────────
 -- Expected: each level re-indents relative to its own parent (same rule as
--- test_queries.sql #31, but this time the subquery is a JOIN target, not a
+-- basic_test_queries.sql #31, but this time the subquery is a JOIN target, not a
 -- FROM target).
 
 SELECT o.order_id, ranked.customer_id, ranked.total_rank FROM orders o JOIN (SELECT customer_id, RANK() OVER (ORDER BY total DESC) AS total_rank FROM (SELECT customer_id, SUM(amount) AS total FROM orders GROUP BY customer_id) inner_totals) ranked ON ranked.customer_id = o.customer_id WHERE ranked.total_rank <= 5

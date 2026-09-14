@@ -222,11 +222,16 @@ static std::string tidy_spacing(const std::string& sql) {
             bool prev_digit = !out.empty() && std::isdigit((unsigned char)out.back());
             out += ',';
             ++i;
+            // A EU-style grouping/decimal comma (e.g. "1.000,00") never has a
+            // space on either side in the source. If a space WAS there
+            // originally, this is an ordinary comma (e.g. two numeric function
+            // arguments, "1, 10") even though both sides happen to be digits.
+            bool had_space_after = i < sql.size() && (sql[i] == ' ' || sql[i] == '\t');
             while (i < sql.size() && (sql[i] == ' ' || sql[i] == '\t')) ++i;
-            // Skip a decimal/grouping comma between digits (NL number 1.000,00).
             bool next_digit = i < sql.size() && std::isdigit((unsigned char)sql[i]);
+            bool is_eu_number_comma = prev_digit && next_digit && !had_space_after;
             if (i < sql.size() && sql[i] != ')' && sql[i] != '\n' && sql[i] != '\r'
-                && !(prev_digit && next_digit))
+                && !is_eu_number_comma)
                 out += ' ';
             continue;
         }
@@ -529,6 +534,7 @@ static std::string split_clauses(const std::string& sql) {
     std::vector<PT> paren_stack;
     bool just_opened_inline = false;  // suppress ensure_nl for first SELECT after '('
     bool skip_next_and = false;       // the AND that belongs to BETWEEN ... AND
+    bool skip_next_from = false;      // the FROM that belongs to a cursor FETCH statement
 
     auto ensure_nl = [&]() {
         if (just_opened_inline) { just_opened_inline = false; return; }
@@ -551,6 +557,27 @@ static std::string split_clauses(const std::string& sql) {
     while (i < sql.size()) {
         char c = sql[i];
         if (copy_verbatim_run(sql, i, out)) continue;
+
+        // A raw newline (one already in the source, not one we're about to
+        // insert ourselves) that has no comma on either side of it ends the
+        // current SELECT column list. Without this, in_sel stays true across
+        // an entire unrelated statement that follows a SELECT with no
+        // semicolon (e.g. "SELECT @sql = '...'\nEXEC sp_executesql @sql,
+        // ..."), and its commas get split like more SELECT columns. A comma
+        // right before the newline (comma-after style) or right after it,
+        // past any leading whitespace (comma-before style), is genuine
+        // evidence this is still the same multi-line column list.
+        if (c == '\n' && in_sel) {
+            size_t e = out.size();
+            while (e > 0 && (out[e-1] == ' ' || out[e-1] == '\t')) --e;
+            bool ends_comma = e > 0 && out[e-1] == ',';
+            size_t j = i + 1;
+            while (j < sql.size() && (sql[j] == ' ' || sql[j] == '\t' ||
+                                       sql[j] == '\n' || sql[j] == '\r')) ++j;
+            bool next_is_comma = j < sql.size() && sql[j] == ',';
+            if (!ends_comma && !next_is_comma) in_sel = false;
+        }
+
         if (c == '(') {
             size_t j = i + 1;
             while (j < sql.size() && sql[j] == ' ') ++j;
@@ -640,6 +667,25 @@ static std::string split_clauses(const std::string& sql) {
             continue;
         }
 
+        // "fetch" (cursor FETCH [NEXT|PRIOR|FIRST|LAST|ABSOLUTE n|RELATIVE n])
+        // — pass through inline and remember that the next FROM belongs to
+        // this FETCH statement, not a SELECT/table FROM clause. Without this,
+        // "FETCH NEXT FROM cur INTO @a, @b" gets treated as a multi-item FROM
+        // list (like "FROM a, b"), splitting "@a, @b" onto its own aligned line.
+        // "fetch" isn't in is_sql_keyword's list, so normalize() never
+        // lowercases it (unlike "from") — match case-insensitively here.
+        if (!prev_word && (c == 'f' || c == 'F') && i + 5 <= sql.size()) {
+            bool is_fetch = true;
+            for (size_t j = 0; j < 5 && is_fetch; ++j)
+                is_fetch = lc(sql[i+j]) == "fetch"[j];
+            if (is_fetch && (i + 5 == sql.size() || word_boundary(sql[i+5]))) {
+                out.append(sql, i, 5);
+                i += 5;
+                skip_next_from = true;
+                continue;
+            }
+        }
+
         if (!prev_word && std::isalpha((unsigned char)c) && allow_split()) {
             bool kw_matched = false;
             for (const Def* d = SPLITS; d->kw; ++d) {
@@ -655,6 +701,13 @@ static std::string split_clauses(const std::string& sql) {
                     out.append(sql, i, n);   // BETWEEN's AND: keep inline
                     i += n;
                     skip_next_and = false;
+                    kw_matched = true;
+                    break;
+                }
+                if (n == 4 && d->kw[0] == 'f' && d->kw[1] == 'r' && skip_next_from) {
+                    out.append(sql, i, n);   // FETCH's FROM: keep inline
+                    i += n;
+                    skip_next_from = false;
                     kw_matched = true;
                     break;
                 }
@@ -889,6 +942,11 @@ static std::string postprocess(const std::string& text) {
                 ++i;
             }
             col1 = rtrim(col1);
+            // Recorded before any alias/qualifier processing touches col1, so the
+            // upcoming continuation-line loop can tell a genuine comma-separated
+            // continuation (comma_after style) from an unrelated statement that
+            // merely follows this SELECT with no semicolon in between.
+            bool col1_had_comma = !col1.empty() && col1.back() == ',';
             // Peel off a leading DISTINCT ON (...) / DISTINCT / ALL quantifier so
             // process_alias sees only the first real column expression.
             std::string qual;
@@ -925,6 +983,7 @@ static std::string postprocess(const std::string& text) {
                 std::string col_pfx(base + KW - 1, ' ');
 
                 std::vector<std::string> col_lines;
+                bool prev_ends_comma = col1_had_comma;
                 while (i < lines.size()) {
                     std::string cr = rtrim(lines[i]);
                     size_t cs = cr.find_first_not_of(" \t");
@@ -932,15 +991,29 @@ static std::string postprocess(const std::string& text) {
                     std::string cs_ = cr.substr(cs);
                     std::string csl = to_lower(cs_);
                     if (match_clause(csl).len > 0 || is_select_kw(csl)) break;
+                    // A continuation line must actually be comma-separated from the
+                    // previous column — either it starts with ',' (comma-before
+                    // style) or the previous column ended with ',' (comma-after
+                    // style). Otherwise this isn't another column at all: it's an
+                    // unrelated statement (e.g. EXEC(@sql)) that just happens to
+                    // follow this SELECT with no semicolon and no recognized
+                    // clause keyword of its own.
+                    bool starts_with_comma = !cs_.empty() && cs_[0] == ',';
+                    if (!starts_with_comma && !prev_ends_comma) break;
                     cr = rtrim(cr);
                     // Strip leading ", " or " " (from comma_after splits)
                     std::string col_content;
-                    if (!cs_.empty() && cs_[0] == ',')
+                    if (starts_with_comma)
                         col_content = (cs_.size() > 2 && cs_[1] == ' ') ? cs_.substr(2) : cs_.substr(1);
                     else
                         col_content = cs_;
                     col_content = rtrim(col_content);
                     col_lines.push_back(col_content);
+                    // Comma evidence for the *next* iteration comes from this raw
+                    // line (starts_with_comma, or its own trailing comma) — not
+                    // from col_content, which can be emptied by the leading-comma
+                    // strip above (e.g. a comma sitting alone on its own line).
+                    prev_ends_comma = starts_with_comma || (!cr.empty() && cr.back() == ',');
                     ++i;
                 }
 
@@ -1086,18 +1159,23 @@ static std::string postprocess(const std::string& text) {
             } else {
                 std::string header = rtrim(s.substr(0, pp));
                 auto pk = extract_paren(pp);
+                // Anything after the closing ')' on this line — e.g. a function's
+                // "RETURNS ... AS $$" — must not be dropped just because it isn't
+                // part of the column/parameter list.
+                std::string tail = pk.second < s.size() ? ltrim(rtrim(s.substr(pk.second))) : "";
+                std::string tail_suffix = tail.empty() ? "" : (" " + tail);
                 auto cols = split_comma_aware(pk.first);
                 int paren_col = (int)(base + header.size() + 1);
                 std::string cont_pfx(paren_col - 1, ' ');
                 if (cols.size() <= 1) {
                     std::string col = cols.empty() ? "" : ltrim(rtrim(cols[0]));
-                    out.push_back(std::string(base, ' ') + header + " (" + col + ")");
+                    out.push_back(std::string(base, ' ') + header + " (" + col + ")" + tail_suffix);
                 } else {
                     out.push_back(std::string(base, ' ') + header + " (" + ltrim(rtrim(cols[0])));
                     for (size_t ci = 1; ci < cols.size(); ++ci) {
                         std::string col = ltrim(rtrim(cols[ci]));
                         bool last = (ci == cols.size() - 1);
-                        out.push_back(cont_pfx + ", " + col + (last ? ")" : ""));
+                        out.push_back(cont_pfx + ", " + col + (last ? (")" + tail_suffix) : ""));
                     }
                 }
             }

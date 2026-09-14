@@ -8,7 +8,7 @@ if errorlevel 1 exit /b 1
 set FAIL=0
 
 for %%P in (default alt) do (
-    .\build\harness\test_harness.exe test_queries.sql %%P > tests\actual_%%P.txt
+    .\build\harness\test_harness.exe tests\basic_test_queries.sql %%P > tests\actual_%%P.txt
     fc /a tests\golden_%%P.txt tests\actual_%%P.txt >nul
     if errorlevel 1 (
         echo MISMATCH: profile %%P differs from tests\golden_%%P.txt
