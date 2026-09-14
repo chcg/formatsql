@@ -1,9 +1,9 @@
 #pragma once
 
 // ─── version (single source of truth — bump here only) ──────────────────────
-#define FORMATSQL_VERSION       "1.3.2.12"
-#define FORMATSQL_VERSION_W     L"1.3.2.12"
-#define FORMATSQL_VERSION_COMMA 1,3,2,12
+#define FORMATSQL_VERSION       "1.3.2.13"
+#define FORMATSQL_VERSION_W     L"1.3.2.13"
+#define FORMATSQL_VERSION_COMMA 1,3,2,13
 
 // ─── dialog IDs ───────────────────────────────────────────────────────────────
 #define IDD_SETTINGS        101
@@ -104,6 +104,8 @@
 #define IDC_PROFILE_DELETE      1105
 #define IDC_PROFILE_EXPORT      1106
 #define IDC_PROFILE_IMPORT      1107
+#define IDC_INI_EXPORT          1108
+#define IDC_INI_IMPORT          1109
 
 // ─── convert quotes dialog ───────────────────────────────────────────────────
 #define IDC_QUOTE_FROM      901

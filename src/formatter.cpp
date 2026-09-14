@@ -1,6 +1,6 @@
 #define NOMINMAX
 #include "formatter.h"
-#include "settings.h"
+#include "settings_core.h"
 #include <string>
 #include <vector>
 #include <algorithm>

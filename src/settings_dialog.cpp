@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cctype>
 #include "settings.h"
+#include "settings_io.h"
 #include "resource.h"
 
 extern HINSTANCE g_module;
@@ -597,6 +598,37 @@ static INT_PTR CALLBACK profiles_page_proc(HWND hPage, UINT msg, WPARAM wParam, 
             if (GetOpenFileNameW(&ofn)) {
                 std::string json = read_text_file(fname);
                 if (!json.empty()) { g_settings = settings_from_json(json); settings_to_ui(); }
+            }
+            break;
+        }
+        case IDC_INI_EXPORT: {
+            wchar_t fname[MAX_PATH] = L"formatsql-settings";
+            OPENFILENAMEW ofn = {};
+            ofn.lStructSize = sizeof(ofn);
+            ofn.hwndOwner   = GetParent(hPage);
+            ofn.lpstrFilter = L"INI files\0*.ini\0All files\0*.*\0";
+            ofn.lpstrFile   = fname;
+            ofn.nMaxFile    = MAX_PATH;
+            ofn.Flags       = OFN_OVERWRITEPROMPT;
+            ofn.lpstrDefExt = L"ini";
+            if (GetSaveFileNameW(&ofn)) {
+                ui_to_settings();
+                write_text_file(fname, settings_to_ini(g_settings));
+            }
+            break;
+        }
+        case IDC_INI_IMPORT: {
+            wchar_t fname[MAX_PATH] = {};
+            OPENFILENAMEW ofn = {};
+            ofn.lStructSize = sizeof(ofn);
+            ofn.hwndOwner   = GetParent(hPage);
+            ofn.lpstrFilter = L"INI files\0*.ini\0All files\0*.*\0";
+            ofn.lpstrFile   = fname;
+            ofn.nMaxFile    = MAX_PATH;
+            ofn.Flags       = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+            if (GetOpenFileNameW(&ofn)) {
+                std::string ini = read_text_file(fname);
+                if (!ini.empty()) { g_settings = settings_from_ini(ini); settings_to_ui(); }
             }
             break;
         }

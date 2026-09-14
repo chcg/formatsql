@@ -1,6 +1,6 @@
 #pragma once
 #include <string>
-#include "settings.h"   // Dialect
+#include "settings_core.h"   // Dialect
 
 // ─── Dialect conversion (hub-and-spoke) ───────────────────────────────────────
 // Every conversion goes through one canonical "hub" form:

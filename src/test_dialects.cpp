@@ -1,7 +1,7 @@
 // Standalone console harness for the hub-and-spoke dialect converter.
 // Not part of the shipped plugin. Built by build_harness.cmd, run by test.cmd.
 #include "dialects.h"
-#include "settings.h"
+#include "settings_core.h"
 #include <iostream>
 #include <string>
 

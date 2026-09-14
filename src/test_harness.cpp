@@ -1,7 +1,7 @@
 // Standalone console harness for regression-testing formatter.cpp in isolation
 // from the Notepad++ plugin DLL. Not part of the shipped plugin.
 #include "formatter.h"
-#include "settings.h"
+#include "settings_core.h"
 #include <fstream>
 #include <iostream>
 #include <sstream>

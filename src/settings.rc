@@ -236,6 +236,10 @@ BEGIN
 
     PUSHBUTTON "Export to JSON...",   IDC_PROFILE_EXPORT,   5, 205, 148, 14
     PUSHBUTTON "Import from JSON...", IDC_PROFILE_IMPORT,  158, 205, 148, 14
+
+    GROUPBOX "Export / import settings as .ini  (for CLI & web playground)", -1, 5, 223, 308, 24
+    PUSHBUTTON "Export as INI...",   IDC_INI_EXPORT,  13, 233, 145, 14
+    PUSHBUTTON "Import from INI...", IDC_INI_IMPORT, 163, 233, 145, 14
 END
 
 // ─── convert quotes dialog ───────────────────────────────────────────────────
