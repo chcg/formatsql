@@ -1,4 +1,7 @@
 @echo off
+:: Builds three artifacts from the same formatter engine: the NPP plugin DLL,
+:: the standalone CLI (build\cli\formatsql.exe), and (if em++ is on PATH) the
+:: WASM module for the website playground - published to C:\Git\datamodder\public\.
 setlocal
 cd /d "%~dp0"
 
